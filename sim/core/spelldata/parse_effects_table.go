@@ -178,7 +178,7 @@ var auraTable = map[dbcenums.EffectAuraType]row{
 
 	// Flat damage done, which the sim keeps as a stat per school.
 	dbcenums.A_MOD_DAMAGE_DONE: func(p *parser, e *Effect, v float64) *attachment {
-		return p.statsBuff(damageDoneStats(e.Misc), v)
+		return p.statsBuff(DamageDoneStats(e.Misc), v)
 	},
 	// The cost of the spells of the schools the mask names, in core's multiplicative cost bucket.
 	// Whether a second stack multiplies again or adds again is not stated, so a stacking row is
@@ -1391,19 +1391,27 @@ func (e *Effect) TotalStatPercentStats() []stats.Stat {
 }
 
 // The stats a flat damage mask names: the sim keeps one stat for physical damage and one for magic,
-// plus a stat per magic school, so a mask of every school is the first two together.
-func damageDoneStats(mask int32) []stats.Stat {
-	switch {
-	case mask == miscAllSchools:
+// plus a stat per magic school, so a mask of every school is the first two together, a mask of every
+// magic school is the second alone, and any other mask names a stat for each school it states: the
+// Spellstones' 36 is fire and shadow damage. The item generator reads the aura's stats by the same rule.
+func DamageDoneStats(mask int32) []stats.Stat {
+	switch mask {
+	case miscAllSchools:
 		return []stats.Stat{stats.PhysicalDamage, stats.SpellDamage}
-	case mask == miscMagicSchool:
+	case miscMagicSchool:
 		return []stats.Stat{stats.SpellDamage}
-	case mask == int32(core.SpellSchoolPhysical):
-		return []stats.Stat{stats.PhysicalDamage}
-	case isOneSchool(mask):
-		return []stats.Stat{core.SpellSchool(mask).SchoolDamage()}
 	}
-	return nil
+
+	var out []stats.Stat
+	if mask&int32(core.SpellSchoolPhysical) != 0 {
+		out = append(out, stats.PhysicalDamage)
+	}
+	for bit := int32(core.SpellSchoolHoly); bit <= int32(core.SpellSchoolArcane); bit <<= 1 {
+		if mask&bit != 0 {
+			out = append(out, core.SpellSchool(bit).SchoolDamage())
+		}
+	}
+	return out
 }
 
 // The stats a resistance mask names: school 1 is armor, and holy has no resistance stat to take.

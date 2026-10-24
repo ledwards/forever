@@ -8,7 +8,8 @@ import (
 // Only the highest rank is registered: the mage casts the rank configured here, not every rank
 // spellData.Fireball lists.
 func (mage *Mage) registerFireballSpell() {
-	mage.registerFireballRank(spellData.Fireball.Len(), spellData.Fireball.Highest())
+	//Rank 11 is last trainer taught spell
+	mage.registerFireballRank(spellData.Fireball.Len(), spellData.Fireball.Rank(11))
 }
 
 func (mage *Mage) registerFireballRank(_ int32, rank *spelldata.Spell) {

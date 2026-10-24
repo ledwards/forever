@@ -1,4 +1,4 @@
-import type { Class } from '@generated/proto/common';
+import type { ActionId } from '@sim/proto/action_id';
 import { classTalentsConfig } from '@sim/talents/factory';
 
 /** A talent tree as the talent calculator shows it: its name and its place among the class's trees. */
@@ -7,14 +7,22 @@ export interface TalentTree {
 	index: number;
 }
 
+const treesBySpellId = new Map(
+	Object.values(classTalentsConfig).flatMap(config =>
+		config.flatMap((tree, index) => tree.talents.map(talent => [talent.spellId, { name: tree.name, index }] as const)),
+	),
+);
+
 /**
- * The tree of an entry's talent: by the talent spell id the sim links the entry to, else by the
- * entry's name. A link to a talent the class does not have falls back to the name. A unit with no
- * class has no trees.
+ * The tree of the held talent an entry is named after. `held` is the unit's talents with points in
+ * them, so a unit with none, such as a pet, has no trees.
  */
-export const talentTrees = (unitClass: Class) => {
-	const talents = classTalentsConfig[unitClass].flatMap((tree, index) => tree.talents.map(talent => ({ talent, tree: { name: tree.name, index } })));
-	const byId = new Map(talents.map(({ talent, tree }) => [talent.spellId, tree]));
-	const byName = new Map(talents.map(({ talent, tree }) => [talent.fancyName, tree]));
-	return (name: string, talentId: number): TalentTree | undefined => byId.get(talentId) ?? byName.get(name);
+export const talentTrees = (held: Array<ActionId>) => {
+	const byName = new Map(
+		held.flatMap(talent => {
+			const tree = treesBySpellId.get(talent.spellId);
+			return tree ? [[talent.baseName, tree] as const] : [];
+		}),
+	);
+	return (name: string): TalentTree | undefined => byName.get(name);
 };

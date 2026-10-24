@@ -69,7 +69,10 @@ func (action *APLActionSequence) Execute(sim *Simulation) {
 			action.curIdx++
 			queueAction.OnAction = oldFunc
 		}
-		action.unit.SetRotationTimer(sim, queueAction.NextActionAt+time.Duration(1))
+		// After a hardcast the rotation still looks at its end, where major cooldowns can go.
+		if !action.unit.QueuedSpell.afterHardcast {
+			action.unit.SetRotationTimer(sim, queueAction.NextActionAt+time.Duration(1))
+		}
 	}
 
 	action.unit.Rotation.inSequence = false
@@ -123,6 +126,8 @@ type APLActionStrictSequence struct {
 	// The queue action currently hooked to advance this sequence, and the callback it replaced.
 	hookedQueueAction *PendingAction
 	hookedOnAction    func(*Simulation)
+
+	gate APLValue // A Strict Multidot's conditions; the sequence ends when it is false as its next cast can go out.
 }
 
 func (rot *APLRotation) newActionStrictSequence(config *proto.APLActionStrictSequence) APLActionImpl {
@@ -204,6 +209,16 @@ func (action *APLActionStrictSequence) GetNextAction(sim *Simulation) *APLAction
 		case *APLActionChannelSpell:
 			castReady = cast.spell.CanCast(sim, cast.target.Get())
 		}
+		if action.curIdx > 0 && action.gate != nil {
+			// A queued cast fires without the gate read again, so a gated cast waits until it can go out.
+			if !castReady {
+				return nil
+			}
+			if !action.gate.GetBool(sim) {
+				action.relinquishControl()
+				return action.unit.Rotation.getNextAction(sim)
+			}
+		}
 		if castReady {
 			action.advanceSequence()
 		} else if _, ok := nextAction.impl.(*APLActionWait); ok {
@@ -220,9 +235,16 @@ func (action *APLActionStrictSequence) GetNextAction(sim *Simulation) *APLAction
 		// and return nil to wait for the GCD to become ready.
 		queueAction := action.unit.QueuedSpell.queueAction
 		action.hookQueueAction(queueAction)
-		action.unit.SetRotationTimer(sim, queueAction.NextActionAt+time.Duration(1))
+		if !action.unit.QueuedSpell.afterHardcast {
+			action.unit.SetRotationTimer(sim, queueAction.NextActionAt+time.Duration(1))
+		} else if !action.unit.hardcastRuns(sim) {
+			// The cast-end pass, after the pick at this instant queued the step and the hardcast landed.
+			return action.cooldownAheadOfStep(sim)
+		}
 
 		return nil
+	} else if action.hookedQueueAction != nil && action.unit.spellQueuedAfterHardcast() {
+		return action.cooldownAheadOfStep(sim)
 	} else if action.unit.GCD.TimeToReady(sim) <= MaxSpellQueueWindow {
 		// If the GCD is ready when the next subaction isn't, it means the sequence is bad
 		// so reset and exit the sequence.
@@ -232,6 +254,21 @@ func (action *APLActionStrictSequence) GetNextAction(sim *Simulation) *APLAction
 		// Return nil to wait for the GCD to become ready.
 		return nil
 	}
+}
+
+// A step queued at the pick, after the hardcast, goes off in the cast-end pass; a major cooldown, the
+// rotation's first ready action, goes ahead of it.
+func (action *APLActionStrictSequence) cooldownAheadOfStep(sim *Simulation) *APLAction {
+	rot := action.unit.Rotation
+	if !rot.majorCooldownMayGo(sim) {
+		return nil
+	}
+	for _, priorityAction := range rot.priorityList {
+		if priorityAction.IsReady(sim) {
+			return Ternary(rot.isMajorCooldown(sim, priorityAction), priorityAction, nil)
+		}
+	}
+	return nil
 }
 
 // hookQueueAction makes the queued spell's action advance this sequence when it fires.

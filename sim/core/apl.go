@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/wowsims/forever/sim/core/proto"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -14,6 +15,12 @@ type APLRotation struct {
 	groups         []*APLGroup
 	valueVariables []*APLValueVariable
 	resetActions   []*APLAction
+
+	canMoveCloserKnown bool // canMoveCloser's answer is set once, as it depends only on the rotation.
+	canMoveCloserValue bool
+
+	majorCooldownActionsKnown bool         // majorCooldownActions is set once, as it depends only on the rotation.
+	majorCooldownActions      []*APLAction // The priority list's actions that can be a major cooldown going ahead of the spell queued after a hardcast.
 
 	// Shared variable caches: all APLValueVariableRef instances for the same
 	// variable name share the same cache (but each has its own expression tree).
@@ -30,6 +37,9 @@ type APLRotation struct {
 
 	// Action currently controlling this rotation (only used for certain actions, such as StrictSequence).
 	controllingActions []APLActionImpl
+
+	// The conditions of the Group References whose group is executing; a Strict Multidot started there re-checks them.
+	groupConditions []APLValue
 
 	// Value that should evaluate to 'true' if the current channel is to be interrupted.
 	// Will be nil when there is no active channel.
@@ -318,7 +328,7 @@ func (rot *APLRotation) getStats() *proto.APLStats {
 	// Perform one final round of validation after post-finalize effects.
 	for i, action := range rot.prepullActions {
 		rot.doAndRecordWarnings(&rot.prepullValidations[rot.prepullIdxMap[i]], true, func() {
-			action.impl.PostFinalize(rot)
+			rot.postFinalize(action)
 		})
 	}
 
@@ -327,14 +337,14 @@ func (rot *APLRotation) getStats() *proto.APLStats {
 		// Parse actions in the group
 		for actionIdx, action := range group.actions {
 			rot.doAndRecordWarnings(&rot.groupListValidations[groupIdx][rot.groupListIdxMap[groupIdx][actionIdx]], false, func() {
-				action.impl.PostFinalize(rot)
+				rot.postFinalize(action)
 			})
 		}
 	}
 
 	for i, action := range rot.priorityList {
 		rot.doAndRecordWarnings(&rot.priorityListValidations[rot.priorityListIdxMap[i]], false, func() {
-			action.impl.PostFinalize(rot)
+			rot.postFinalize(action)
 		})
 	}
 
@@ -413,7 +423,7 @@ func (rot *APLRotation) reset(sim *Simulation) {
 // and leverage the community's existing familiarity.
 // https://github.com/simulationcraft/simc/wiki/ActionLists
 func (apl *APLRotation) DoNextAction(sim *Simulation) {
-	if sim.CurrentTime < 0 {
+	if sim.CurrentTime < 0 && !apl.unit.engagedBeforePull {
 		return
 	}
 
@@ -458,12 +468,20 @@ func (apl *APLRotation) DoNextAction(sim *Simulation) {
 	apl.unit.UpdatePosition(sim, false)
 	free := apl.unit.GCD.IsReady(sim) && apl.unit.Hardcast.Expires <= sim.CurrentTime
 	apl.unit.costBlocked = false
-	for nextAction := apl.getNextAction(sim); nextAction != nil; i, nextAction = i+1, apl.getNextAction(sim) {
+	for nextAction := apl.firstAction(sim); ; i, nextAction = i+1, apl.getNextAction(sim) {
 		if i > 1000 {
 			panic(fmt.Sprintf("[USER_ERROR] Infinite loop detected, current action:\n%s", nextAction))
 		}
 
-		nextAction.Execute(sim)
+		// The spell queued after the hardcast that just ended goes off first in this pass, a major cooldown
+		// alone ahead of it; what the rotation puts after the GCD it starts, such as an explosive, still goes now.
+		if apl.unit.queuedSpellDue(sim) && (nextAction == nil || !apl.isMajorCooldown(sim, nextAction)) {
+			apl.unit.castDueQueuedSpell(sim)
+		} else if nextAction != nil {
+			nextAction.Execute(sim)
+		} else {
+			break
+		}
 		// Shoot has no GCD to end the pass; any later cast would cut it.
 		if apl.unit.Wand.wanding() {
 			i++
@@ -482,7 +500,12 @@ func (apl *APLRotation) DoNextAction(sim *Simulation) {
 		}
 	}
 
-	if sim.Log != nil && i == 0 {
+	// A look while a hardcast holds the rotation, at its end with the next spell queued after it, or as that
+	// spell goes off, waits on that spell, so it logs no idle pass and no pause.
+	hardcastHoldsRotation := apl.unit.hardcastHoldsRotation(sim)
+	waitsOnCast := hardcastHoldsRotation || apl.unit.spellQueuedAfterHardcast() || apl.unit.queuedSpellWentOff(sim)
+
+	if sim.Log != nil && i == 0 && !waitsOnCast {
 		apl.unit.Log(sim, "No available actions!")
 	}
 
@@ -494,7 +517,16 @@ func (apl *APLRotation) DoNextAction(sim *Simulation) {
 			nextEvaluation = max(nextEvaluation, apl.unit.NextGCDAt())
 		}
 
-		apl.unit.WaitUntil(sim, nextEvaluation)
+		// Under a hardcast that holds the rotation, the next look is at its end, where the pick is made.
+		if hardcastHoldsRotation {
+			nextEvaluation = apl.unit.Hardcast.Expires
+		}
+
+		if waitsOnCast {
+			apl.unit.SetRotationTimer(sim, nextEvaluation)
+		} else {
+			apl.unit.WaitUntil(sim, nextEvaluation)
+		}
 	}
 }
 
@@ -505,13 +537,80 @@ func (apl *APLRotation) getNextAction(sim *Simulation) *APLAction {
 		return apl.controllingActions[len(apl.controllingActions)-1].GetNextAction(sim)
 	}
 
+	held := apl.unit.queuedSpellHoldsCasts(sim)
 	for _, action := range apl.priorityList {
-		if action.IsReady(sim) {
+		if !(held && action.heldByQueuedSpell(sim)) && action.IsReady(sim) {
 			return action
 		}
 	}
 
 	return nil
+}
+
+// The pass's first action. With the spell queued after a hardcast due and no major cooldown ready to go
+// ahead of it, there is none, and the spell goes off without a look at the priority list.
+func (apl *APLRotation) firstAction(sim *Simulation) *APLAction {
+	if apl.unit.queuedSpellDue(sim) && len(apl.controllingActions) == 0 {
+		apl.evalGeneration++ // The variable refs in the major cooldowns' conditions read the state after the cast landed.
+		if !apl.majorCooldownMayGo(sim) {
+			return nil
+		}
+	}
+	return apl.getNextAction(sim)
+}
+
+// Whether an action of the priority list that can be a major cooldown is ready.
+func (apl *APLRotation) majorCooldownMayGo(sim *Simulation) bool {
+	if !apl.majorCooldownActionsKnown {
+		apl.majorCooldownActionsKnown = true
+		apl.majorCooldownActions = FilterSlice(apl.priorityList, canBeMajorCooldown)
+	}
+	for _, action := range apl.majorCooldownActions {
+		if action.IsReady(sim) {
+			return true
+		}
+	}
+	return false
+}
+
+// Whether isMajorCooldown can accept the action: an autocast, a cast of a major cooldown, or a group holding
+// one of these. The two must agree, or a major cooldown misses its turn ahead of the spell queued after a
+// hardcast.
+func canBeMajorCooldown(action *APLAction) bool {
+	switch impl := action.impl.(type) {
+	case *APLActionAutocastOtherCooldowns:
+		return true
+	case *APLActionCastSpell:
+		return impl.spell.Flags.Matches(SpellFlagMCD)
+	case *APLActionCastFriendlySpell:
+		return impl.spell.Flags.Matches(SpellFlagMCD)
+	case *APLActionGroupReference:
+		return impl.group != nil && slices.ContainsFunc(impl.group.actions, canBeMajorCooldown)
+	}
+	return false
+}
+
+// A major cooldown, or a group whose first ready action is one. canBeMajorCooldown must accept every action
+// this accepts.
+func (apl *APLRotation) isMajorCooldown(sim *Simulation, action *APLAction) bool {
+	switch impl := action.impl.(type) {
+	case *APLActionAutocastOtherCooldowns:
+		return true
+	case *APLActionCastSpell:
+		return impl.spell.Flags.Matches(SpellFlagMCD)
+	case *APLActionCastFriendlySpell:
+		return impl.spell.Flags.Matches(SpellFlagMCD)
+	case *APLActionGroupReference:
+		if impl.group == nil {
+			return false
+		}
+		for _, groupAction := range impl.group.actions {
+			if groupAction.IsReady(sim) {
+				return apl.isMajorCooldown(sim, groupAction)
+			}
+		}
+	}
+	return false
 }
 
 // HasBlockingControllingAction reports whether the rotation is currently parked
@@ -647,16 +746,16 @@ func (rot *APLRotation) newAPLActionWithGroupVars(config *proto.APLAction, group
 		return nil
 	}
 
-	action := &APLAction{
-		condition: rot.coerceTo(rot.newAPLValueWithContext(config.Condition, groupVars), proto.APLValueType_ValueTypeBool),
-		impl:      rot.newAPLActionImpl(config),
+	condition := rot.coerceTo(rot.newAPLValueWithContext(config.Condition, groupVars), proto.APLValueType_ValueTypeBool)
+	if config.Condition != nil && config.Condition.Value != nil && condition == nil {
+		rot.ValidationMessage(proto.LogLevel_Warning, "Condition could not be resolved and will be treated as always true. Add an 'Aura Known' check if this action should be skipped when the aura is absent.")
 	}
 
-	if action.impl == nil {
+	impl := rot.newAPLActionImpl(config)
+	if impl == nil {
 		return nil
-	} else {
-		return action
 	}
+	return newAPLActionEntry(condition, impl)
 }
 
 // Re-resolve variable references in an APLValue with updated group variables

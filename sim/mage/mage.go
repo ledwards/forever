@@ -115,7 +115,7 @@ func NewMage(character *core.Character, options *proto.Player) *Mage {
 		Options:   mageOptions,
 	}
 
-	core.FillTalentsProto(mage.Talents.ProtoReflect(), options.TalentsString, TalentTreeSizes)
+	mage.FillTalentsProto(mage.Talents.ProtoReflect(), options.TalentsString, TalentTreeSizes)
 
 	mage.EnableManaBar()
 	mage.AddStatDependency(stats.Strength, stats.AttackPower, 1)

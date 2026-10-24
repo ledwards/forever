@@ -16,6 +16,7 @@ import (
 	"github.com/wowsims/forever/sim/core/simsignals"
 	"github.com/wowsims/forever/sim/core/spelldata"
 	"github.com/wowsims/forever/sim/core/stats"
+	"github.com/wowsims/forever/sim/priest"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -176,8 +177,8 @@ func TestTheStrongerBattleShoutTakesTheCategory(t *testing.T) {
 	}
 }
 
-// Two flat stat rows: Prayer of Fortitude's stamina bids only against its own stat's category and
-// Blood Pact names none, so the two sources of stamina add up.
+// Two flat stat rows: Prayer of Fortitude's stamina bids in StatBuff's stamina category and Blood Pact
+// in BloodPact, so the two sources of stamina add up.
 func TestGeneratedFlatStatBuffsAddUp(t *testing.T) {
 	char := core.NewGeneratedBuffTestCharacter()
 
@@ -1840,6 +1841,163 @@ func TestTruePetsStandUnderTheOwnersManaTide(t *testing.T) {
 	totem.Deactivate(sim)
 	if petTotem.IsActive() {
 		t.Error("the pet keeps Mana Tide after the owner's has gone")
+	}
+}
+
+// The party's Dark Inspiration is the buff's amount at the talent's rank the field states, up for the
+// fight; rank 0 puts nothing on the character.
+func TestGeneratedDarkInspirationTakesTheTalentsRank(t *testing.T) {
+	for rank := int32(0); rank <= 5; rank++ {
+		char := core.NewGeneratedBuffTestCharacter()
+		char.SetStats(stats.Stats{stats.Spirit: 1000})
+		core.ApplyBuffEffects(char, &proto.RaidBuffs{}, &proto.PartyBuffs{DarkInspiration: rank}, &proto.IndividualBuffs{})
+		measureGeneratedBuffStats(char)
+
+		aura := char.GetAura("Dark Inspiration (External)")
+		if rank == 0 {
+			if aura != nil {
+				t.Errorf("rank 0 registered %q", aura.Label)
+			}
+			continue
+		}
+		if aura == nil {
+			t.Fatalf("rank %d registered no party copy: %v", rank, auraLabels(char))
+		}
+		if aura.Duration != core.NeverExpires {
+			t.Errorf("rank %d lasts %v, want the whole fight", rank, aura.Duration)
+		}
+		want := math.Floor(1000 * buffs.DarkInspirationValue(rank))
+		if got := char.GetStats()[stats.Spirit]; got != want {
+			t.Errorf("rank %d raised 1000 Spirit to %v, want %v", rank, got, want)
+		}
+	}
+}
+
+func init() {
+	priest.RegisterPriest()
+}
+
+// A shadow priest with priestRank points in Dark Inspiration and the pet owner in one party, under the
+// party's Dark Inspiration at partyRank.
+func darkInspirationParty(t *testing.T, partyRank int32, priestRank int32) (*core.Simulation, *core.Character, *petOwner) {
+	t.Helper()
+	sim := core.NewSim(&proto.RaidSimRequest{
+		SimOptions: &proto.SimOptions{RandomSeed: 100},
+		Raid: &proto.Raid{
+			Parties: []*proto.Party{{
+				Players: []*proto.Player{
+					{
+						Name:          "Priest",
+						Class:         proto.Class_ClassPriest,
+						Race:          proto.Race_RaceTroll,
+						Equipment:     &proto.EquipmentSpec{},
+						TalentsString: fmt.Sprintf("--000000000%d", priestRank),
+						Spec: &proto.Player_DpsPriest{DpsPriest: &proto.DpsPriest{
+							Options: &proto.DpsPriest_Options{ClassOptions: &proto.PriestOptions{}}}},
+					},
+					{
+						Name:      "Owner",
+						Class:     proto.Class_ClassHunter,
+						Race:      proto.Race_RaceDwarf,
+						Spec:      &proto.Player_Hunter{},
+						Equipment: &proto.EquipmentSpec{},
+					},
+				},
+				Buffs: &proto.PartyBuffs{DarkInspiration: partyRank},
+			}},
+		},
+		Encounter: &proto.Encounter{
+			Targets:  []*proto.Target{{Name: "target", Level: 60}},
+			Duration: 180,
+		},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	players := sim.Raid.Parties[0].Players
+	return sim, players[0].GetCharacter(), players[1].(*petOwner)
+}
+
+// The party's copy and a priest's own bid in one category per stat, so a member has the stronger
+// amount alone. The party's copy stays up throughout: a stronger priest's copy holds the Spirit while
+// it is up and the party's holds it again once it ends, and an equal or weaker one never takes the
+// Spirit from the party's.
+func TestGeneratedDarkInspirationAndAPriestsCopyDoNotStack(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		partyRank, priestRank int32
+	}{
+		{"stronger priest", 3, 5},
+		{"equal bids", 5, 5},
+		{"weaker priest", 5, 3},
+	} {
+		sim, priestChar, member := darkInspirationParty(t, tc.partyRank, tc.priestRank)
+		party := member.GetAura("Dark Inspiration (External)")
+		own := member.GetAura("Dark Inspiration-" + priestChar.Label)
+		if party == nil || own == nil {
+			t.Fatalf("%s: the member carries %v, want the party's copy and the priest's", tc.name, auraLabels(&member.Character))
+		}
+		if !party.IsActive() || own.IsActive() {
+			t.Fatalf("%s: at the pull the party's copy is up %v and the priest's %v, want only the party's", tc.name, party.IsActive(), own.IsActive())
+		}
+		if len(party.ExclusiveEffects) != 1 {
+			t.Fatalf("%s: the party's copy bids in %d categories, want Spirit's alone", tc.name, len(party.ExclusiveEffects))
+		}
+		spirit := party.ExclusiveEffects[0].Category
+
+		party.Deactivate(sim)
+		base := member.GetStat(stats.Spirit)
+		if base <= 0 {
+			t.Fatalf("the member has %v Spirit, which no multiplier moves", base)
+		}
+		party.Activate(sim)
+		spiritAt := func(rank int32) float64 { return math.Floor(base * buffs.DarkInspirationValue(rank)) }
+		check := func(when string, want float64, holder *core.Aura) {
+			t.Helper()
+			if got := member.GetStat(stats.Spirit); got != want {
+				t.Errorf("%s %s: Spirit is %v, want %v", tc.name, when, got, want)
+			}
+			if !party.IsActive() {
+				t.Errorf("%s %s: the party's copy is down", tc.name, when)
+			}
+			if got := spirit.GetActiveAura(); got != holder {
+				label := "nothing"
+				if got != nil {
+					label = got.Label
+				}
+				t.Errorf("%s %s: %s holds the Spirit, want %q", tc.name, when, label, holder.Label)
+			}
+		}
+		check("alone", spiritAt(tc.partyRank), party)
+
+		own.Activate(sim)
+		check("under the priest's copy", spiritAt(max(tc.priestRank, tc.partyRank)), core.Ternary(tc.priestRank > tc.partyRank, own, party))
+
+		stepTo(t, sim, sim.CurrentTime+own.Duration+time.Millisecond)
+		if own.IsActive() {
+			t.Errorf("%s: the priest's copy outlasted its %v", tc.name, own.Duration)
+		}
+		check("after the priest's copy ends", spiritAt(tc.partyRank), party)
+	}
+}
+
+// The party's Dark Inspiration and a priest's own reach the party's players, never their pets.
+func TestGeneratedDarkInspirationLeavesThePetsOut(t *testing.T) {
+	_, _, member := darkInspirationParty(t, 5, 5)
+	carries := func(unit *core.Unit) []string {
+		var labels []string
+		for _, aura := range unit.GetAuras() {
+			if aura.ActionID.SpellID == 1326168 {
+				labels = append(labels, aura.Label)
+			}
+		}
+		return labels
+	}
+	if got := carries(&member.Unit); len(got) != 2 {
+		t.Fatalf("the member carries %v, want the party's copy and the priest's", got)
+	}
+	for _, pet := range []*testPet{member.pet, member.guardian, member.dynamic} {
+		if got := carries(&pet.Unit); len(got) > 0 {
+			t.Errorf("%s carries %v", pet.Label, got)
+		}
 	}
 }
 

@@ -1,35 +1,39 @@
 import * as PresetUtils from '@app/preset_utils';
 import * as Consumables from '@features/settings/model/consumables_auto_gen';
 import { Debuffs, IndividualBuffs, PartyBuffs, RaidBuffs } from '@generated/proto/buffs';
-import { ConsumesSpec, Profession, Spec } from '@generated/proto/common';
-import { Mage_Options as MageOptions, Mage_Rotation, MageArmor } from '@generated/proto/mage';
+import { ConsumesSpec, Profession } from '@generated/proto/common';
+import { Mage_Options as MageOptions, MageArmor } from '@generated/proto/mage';
 import { SavedTalents } from '@generated/proto/ui';
+import type { PresetSettings } from '@sim/presets/types';
 
-import DefaultApl from './apls/default.apl.json';
+import arcaneFire from './apls/arcaneFireFill.apl.json';
+import arcaneFrost from './apls/arcaneFrostFill.apl.json';
+import deepFire from './apls/deepFire.apl.json';
+import ffb from './apls/ffb.apl.json';
+import frost from './apls/frost.apl.json';
 import P1ArcaneGearJson from './gear_sets/p1Arcane.gear.json';
 
-export const P1ArcaneGear = PresetUtils.makePresetGear('P1 Arcane', P1ArcaneGearJson);
+export const P1ArcaneGear = PresetUtils.makePresetGear('P1 Arcane', P1ArcaneGearJson, { devOnly: true });
 
-export const ArcaneTalents = {
-	name: 'Arcane',
-	data: SavedTalents.create({
-		talentsString: '0502205003100301531--055500032',
-	}),
-};
+export const ArcaneFrostAplPreset = PresetUtils.makePresetAPLRotation('Arcane Frost', arcaneFrost);
+export const ArcaneFireAplPreset = PresetUtils.makePresetAPLRotation('Arcane Fire', arcaneFire);
+export const FFBAplPreset = PresetUtils.makePresetAPLRotation('FFB', ffb);
+export const FireAplPreset = PresetUtils.makePresetAPLRotation('Fire', deepFire);
+export const FrostAplPreset = PresetUtils.makePresetAPLRotation('Frost', frost);
 
-// Preset options for this spec.
-// Eventually we will import these values for the raid sim too, so its good to
-// keep them in a separate file.
+export const ArcaneFrostTalents = PresetUtils.makePresetTalents('Arcane Frost', SavedTalents.create({ talentsString: '0552205003100311531-03-0533' }));
+export const ArcaneFireTalents = PresetUtils.makePresetTalents('Arcane Fire', SavedTalents.create({ talentsString: '0502205003100311531-230510301001-003' }));
+export const FFBTalents = PresetUtils.makePresetTalents('FFB', SavedTalents.create({ talentsString: '-2355000013011503-2035010311013002' }));
+export const FireTalents = PresetUtils.makePresetTalents('Fire', SavedTalents.create({ talentsString: '05022050001001-23550000130135031-003' }));
+export const FrostTalents = PresetUtils.makePresetTalents('Frost', SavedTalents.create({ talentsString: '05022050011003--053500030100331251' }));
 
-export const DEFAULT_APL = PresetUtils.makePresetAPLRotation('Default', DefaultApl);
-
-export const ArcaneMageSimpleRotation = Mage_Rotation.create({
+/* export const ArcaneMageSimpleRotation = Mage_Rotation.create({
 	conserveStart: 20,
 	conserveEnd: 30,
 	delayMajorCDs: 10,
 });
-
 export const APL_ARCANE_SIMPLE = PresetUtils.makePresetSimpleRotation('Simple', Spec.SpecMage, ArcaneMageSimpleRotation);
+*/
 
 export const DefaultOptions = MageOptions.create({
 	classOptions: {
@@ -41,12 +45,15 @@ export const OtherDefaults = {
 	distanceFromTarget: 20,
 	profession1: Profession.Engineering,
 	profession2: Profession.Tailoring,
+	reactionTimeMs: 100,
 };
 
 export const DefaultConsumables = ConsumesSpec.create({
-	elixirIds: [Consumables.GreaterArcaneElixir.id, Consumables.ElixirOfTheSages.id],
+	flaskId: Consumables.FlaskOfSupremePower.id,
+	elixirIds: [Consumables.GreaterArcaneElixir.id, Consumables.ElixirOfTheSages.id, Consumables.ElixirOfTheWhale.id, Consumables.MagebloodElixir.id],
 	foodId: Consumables.NightfinSoup.id,
 	mhImbueId: Consumables.BrilliantWizardOil.id,
+	mhWeaponImbueId: Consumables.ScrollOfImbuePrecision.id,
 	resourcePotId: Consumables.MajorManaPotion.id,
 });
 
@@ -55,6 +62,7 @@ export const DefaultRaidBuffs = RaidBuffs.create({
 	arcaneBrilliance: true,
 	giftOfTheWild: true,
 	prayerOfFortitude: true,
+	moonkinAura: true,
 });
 
 export const DefaultPartyBuffs = PartyBuffs.create({
@@ -72,4 +80,62 @@ export const DefaultIndividualBuffs = IndividualBuffs.create({
 export const DefaultDebuffs = Debuffs.create({
 	curseOfElements: true,
 	judgementOfWisdom: true,
+});
+
+export const DefaultSettings: PresetSettings = {
+	name: 'Default',
+	specOptions: DefaultOptions,
+	consumables: DefaultConsumables,
+	buffs: DefaultIndividualBuffs,
+	partyBuffs: DefaultPartyBuffs,
+	raidBuffs: DefaultRaidBuffs,
+	debuffs: DefaultDebuffs,
+	playerOptions: OtherDefaults,
+};
+
+export const ArcaneFrostBuild = PresetUtils.makePresetBuild('Arcane Frost', {
+	gear: P1ArcaneGear,
+	talents: ArcaneFrostTalents,
+	//rotationType: APLRotationType.TypeAuto,
+	rotation: ArcaneFrostAplPreset,
+	settings: DefaultSettings,
+});
+
+export const ArcaneFireBuild = PresetUtils.makePresetBuild('Arcane Fire', {
+	gear: P1ArcaneGear,
+	talents: ArcaneFireTalents,
+	//rotationType: APLRotationType.TypeAuto,
+	rotation: ArcaneFireAplPreset,
+	settings: DefaultSettings,
+});
+
+export const FFBBuild = PresetUtils.makePresetBuild('FFB', {
+	gear: P1ArcaneGear,
+	talents: FFBTalents,
+	//rotationType: APLRotationType.TypeAuto,
+	rotation: FFBAplPreset,
+	settings: DefaultSettings,
+});
+
+export const FireBuild = PresetUtils.makePresetBuild('Fire', {
+	gear: P1ArcaneGear,
+	talents: FireTalents,
+	//rotationType: APLRotationType.TypeAuto,
+	rotation: FireAplPreset,
+	settings: DefaultSettings,
+});
+
+export const FrostSettings: PresetSettings = {
+	name: 'Frost',
+	playerOptions: {
+		distanceFromTarget: 10,
+	},
+};
+
+export const FrostBuild = PresetUtils.makePresetBuild('Frost', {
+	gear: P1ArcaneGear,
+	talents: FrostTalents,
+	//rotationType: APLRotationType.TypeAuto,
+	rotation: FrostAplPreset,
+	settings: FrostSettings,
 });

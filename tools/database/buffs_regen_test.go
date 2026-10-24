@@ -177,8 +177,9 @@ func attachesNothing(*spelldata.Spell) map[string]float64 {
 }
 
 // The rows a talent prices the improved state of: Restorative Totems on Mana Spring, Guardian
-// Totems on Stoneskin Totem, and Vindication's talent on its debuff.
-var talentPricedRows = []string{"mana_spring_totem", "stoneskin_totem", "vindication"}
+// Totems on Stoneskin Totem, Vindication's talent on its debuff, and Dark Inspiration's talent on
+// its buff.
+var talentPricedRows = []string{"mana_spring_totem", "stoneskin_totem", "vindication", "dark_inspiration"}
 
 // The ranks of the class tree node the talent spell sits on, 0 when it sits on none.
 func talentNodeRanks(t *testing.T, talent int32) int32 {

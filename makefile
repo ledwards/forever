@@ -11,6 +11,10 @@ ASSETS := $(patsubst assets/%,$(OUT_DIR)/assets/%,$(ASSETS_INPUT))
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 GOROOT := $(shell go env GOROOT)
 UI_SRC := $(shell find ui -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.html" -o -name "*.json")
+# The bundle names the commit it is built from and the last changes to each spec (tools/vite/build_info.mts),
+# so a commit or checkout rebuilds it: index changes on every commit and checkout, HEAD on a branch switch,
+# and --git-dir names a worktree's own folder.
+GIT_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
 AUTO_GEN_FILES_TS := ui/sim/player/classes/capabilities_auto_gen.ts ui/sim/bulk/constants_auto_gen.ts ui/sim/wasm/bulk_sim/constants_auto_gen.ts ui/sim/proto/sim_tables_auto_gen.ts ui/sim/wasm/stat_weights_constants_auto_gen.ts
 AUTO_GEN_FILES_TS_DEPS := sim/core/base_stats.go sim/core/bulk/candidates.go sim/core/bulk/statistics.go sim/core/consumes_imbues.go sim/core/database.go sim/core/statweight.go tools/database/gen_character_constants_ts.go tools/database/gen_bulksim_constants.ts.go tools/database/gen_sim_tables_ts.go tools/database/gen_stat_weight_constants_ts.go sim/core/proto/api.pb.go
 
@@ -27,6 +31,9 @@ $(OUT_DIR)/bundle/.dirstamp: \
   vite.config.mts \
   vite.build-workers.mts \
   tools/vite/spec_pages.mts \
+  tools/vite/build_info.mts \
+  assets/db_inputs/spell_store_inputs.json \
+  $(if $(GIT_DIR),$(GIT_DIR)/HEAD $(GIT_DIR)/index) \
   node_modules \
   tsconfig.json \
   ui/generated/proto/api.ts

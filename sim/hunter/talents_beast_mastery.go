@@ -50,7 +50,8 @@ func (hunter *Hunter) registerFocusedFire() {
 }
 
 // Effect 1 scales the damage done of Tamed Pet Passive (8875), which states 0: the talent's
-// amount is the whole bonus. It names Summon Hawk too, which the store carries.
+// amount is the whole bonus. Its class flags match the Summon Hawk dive too, which the store carries;
+// the tooltip names the hawks, which take it as the pet does.
 func (hunter *Hunter) registerUnleashedFury() {
 	if hunter.Talents.UnleashedFury == 0 {
 		return
@@ -62,8 +63,9 @@ func (hunter *Hunter) registerUnleashedFury() {
 	}
 }
 
-// Effect 1 adds to the crit chance of Tamed Pet Passive (19591), which states 0. It names Summon
-// Hawk's damage too, which the store carries.
+// Effect 1 adds to the crit chance of Tamed Pet Passive (19591), which states 0. Its class flags
+// match the Summon Hawk dive too, which the store carries; the tooltip names the hawks, which take
+// it whole: a hawk with Ferocity 5/5 read 10 plus half its owner's crit.
 func (hunter *Hunter) registerFerocity() {
 	if hunter.Talents.Ferocity == 0 {
 		return

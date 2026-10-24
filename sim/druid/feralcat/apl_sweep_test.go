@@ -71,6 +71,9 @@ type aplTune struct {
 	// ccShred spends Clearcasting on Shred (Claw where Shred cannot land) ahead of the bleeds,
 	// Shifting Power and Ferocious Bite: Shred is the most energy Clearcasting can save.
 	ccShred bool
+	// excess pools on the Excess Energy value: a builder waits while it would leave a pending Rip or
+	// Rake refresh short, however far ahead the refresh is. rakePool is then unused.
+	excess bool
 }
 
 // aplVars holds the named conditions of a list, which the APL editor shows as variables so a reader
@@ -124,6 +127,9 @@ func catAPL(tune aplTune) *proto.APLRotation {
 			cmp(proto.APLValueCompare_OpGt, dotLeft(spellRake), konst("0s")),
 			cmp(proto.APLValueCompare_OpLe, dotLeft(spellRake), konst(tune.rakePool)),
 			cmp(proto.APLValueCompare_OpLt, afterBuilder, spellCost(spellRake))))
+	}
+	if tune.excess {
+		pooling = cmp(proto.APLValueCompare_OpLt, excessEnergy(), spellCost(spellShred))
 	}
 	pooling = vars.def("Pool for a refresh", pooling)
 	// Berserk is a major cooldown, so a plain cast waits for a GCD that is already idle while the
@@ -267,13 +273,8 @@ func manaShort() *proto.APLValue {
 // BestCatAPL is the list ui/specs/druid/feralcat/apls/default.apl.json holds.
 var bestCatAPL = aplTune{elune: "after", omen: true, innervate: true, rakePool: "1s", biteEnd: true, biteLow: "3s", rakeCut: "6s", ccShred: true}
 
-// The cat UI's default talents (presets.ts CatTalents), and the ones bearweaveAPL is played with: one
-// more point out of Rend and Tear into Primal Bite. Genesis stays at 5, which Nature's Majesty and
-// Nature's Reach need below them.
-const (
-	catTalents       = DefaultTalents
-	bearweaveTalents = BearweaveTalents
-)
+// The cat UI's default talents (presets.ts CatTalents), which the Bearweave build plays as well.
+const catTalents = DefaultTalents
 
 // weaveTune is one bear trip. energyMax is the most energy the cat goes into bear with, spLeft the
 // least Shifting Power cooldown left, manaPerSecond the mana kept back per second of fight left on
@@ -554,7 +555,7 @@ func TestCatAPLPresetHasNoWarningsOnTheDefaultCat(t *testing.T) {
 func TestBearweaveAPLPresetHasNoWarningsOnItsTalents(t *testing.T) {
 	preset := core.GetAplRotation("../../../ui/specs/druid/feralcat/apls", "bearweave").Rotation
 	req := uiDefaultCat(preset)
-	req.Raid.Parties[0].Players[0].TalentsString = bearweaveTalents
+	req.Raid.Parties[0].Players[0].TalentsString = catTalents
 	if warnings := withoutIdleAutocast(preset, aplWarnings(t, preset, req)); len(warnings) != 0 {
 		t.Errorf("preset warnings by line: %v", warnings)
 	}
@@ -627,6 +628,7 @@ func TestAPLSweep(t *testing.T) {
 		{"apl, shift cap 55", withTune(func(t *aplTune) { t.ceiling = 55 })},
 		{"apl, omen only under 20", withTune(func(t *aplTune) { t.omenMax = "20" })},
 		{"apl, no omen fishing", withTune(func(t *aplTune) { t.omen = false })},
+		{"apl, excess energy pooling", withTune(func(t *aplTune) { t.excess = true })},
 	}
 	scenarios := []aplScenario{
 		{name: "180s, consumes", duration: 180, consumes: true},
@@ -747,6 +749,10 @@ func spellCanCast(id int32) *proto.APLValue {
 
 func spellLeft(id int32) *proto.APLValue {
 	return &proto.APLValue{Value: &proto.APLValue_SpellTimeToReady{SpellTimeToReady: &proto.APLValueSpellTimeToReady{SpellId: spellID(id)}}}
+}
+
+func excessEnergy() *proto.APLValue {
+	return &proto.APLValue{Value: &proto.APLValue_DruidExcessEnergy{DruidExcessEnergy: &proto.APLValueDruidExcessEnergy{}}}
 }
 
 func spellCost(id int32) *proto.APLValue {

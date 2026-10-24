@@ -1,8 +1,9 @@
 # Running the sim locally
 
-**Source of truth:** `vite.config.mts`, `vite.build-workers.mts`, `tools/vite/spec_pages.mts`, the `devserver` /
-`rundevserver` / `devmode` / `host` targets in the makefile, `ui/worker/local_worker.ts`, and for Storybook
-`.storybook/main.ts` and the `storybook:*` scripts in `package.json`. Read a target before copying a command from here:
+**Source of truth:** `vite.config.mts`, `vite.build-workers.mts`, `tools/vite/spec_pages.mts`, `tools/vite/build_info.mts`,
+the `devserver` / `rundevserver` / `devmode` / `host` targets in the makefile, `ui/worker/local_worker.ts`, and for
+Storybook `.storybook/main.ts` and the `storybook:*` scripts in `package.json`. Read a target before copying a command
+from here:
 
 ```
 /usr/bin/grep -n "^devserver:\|^rundevserver:\|^devmode:\|^host:" -A8 makefile
@@ -32,6 +33,19 @@ A fresh worktree also needs the generated files (`verification.md`, last section
 `tools/vite/spec_pages.mts` serves every spec URL from `ui/index_template.html`, and redirects the bare
 `/forever/<class>/<spec>` to the trailing-slash form as the production host does. Only an unknown spec URL falls through
 to the landing page, so getting the landing page means there is no `ui/specs/<class>/<spec>/spec.ts(x)` for that URL.
+
+## The release a page shows
+
+`tools/vite/build_info.mts` reads the release when vite loads its config: the commit (`BUILD_COMMIT`, else
+`git rev-parse HEAD`, else `GITHUB_SHA`), the UTC build date, the game build stamped on each part of
+`assets/db_inputs/spell_store_inputs.json`, and each spec page's last presets and engine changes, over the paths listed
+above `specReleases`. A shallow clone has no changes to read, so the build workflows check out the full history.
+
+`vite.config.mts` defines the lot as `import.meta.env.VITE_BUILD_INFO`. The landing page shows the game build, the build
+date and the commit beside its title; a spec page shows the game build and the date under the sidebar's stats, and its
+info button opens the sim build with the commit and the spec's presets and engine changes. The makefile's bundle target depends on the checkout's `HEAD` and
+`index`, so a commit or checkout rebuilds it. vitest and Storybook define no `VITE_BUILD_INFO`; the stories and tests
+fill `BUILD_INFO` from `ui/testing/build_info.ts`.
 
 ## Running real sims
 

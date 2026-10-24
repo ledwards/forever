@@ -322,45 +322,6 @@ func TestMetadataShiftSpellsSkipShiftsTheAPLCannotCast(t *testing.T) {
 	}
 }
 
-func TestMetadataMarksTalentSpellsAndThePlayersClass(t *testing.T) {
-	talent := &Spell{ActionID: ActionID{SpellID: 20375}, Source: SourceTalent}
-	trained := &Spell{ActionID: ActionID{SpellID: 20271}}
-	paladin := &Character{Unit: Unit{Spellbook: []*Spell{talent, trained}}, Class: proto.Class_ClassPaladin}
-
-	metadata := paladin.GetMetadata()
-	if !metadata.Spells[0].FromTalent || metadata.Spells[1].FromTalent {
-		t.Errorf("from talent = %v / %v, want true for the talent's spell only", metadata.Spells[0].FromTalent, metadata.Spells[1].FromTalent)
-	}
-	if metadata.Class != proto.Class_ClassPaladin {
-		t.Errorf("player class = %v, want Paladin", metadata.Class)
-	}
-	if got := (&Unit{}).GetMetadata().Class; got != proto.Class_ClassUnknown {
-		t.Errorf("bare unit class = %v, want unknown", got)
-	}
-	pet := &Pet{Character: Character{Class: proto.Class_ClassPaladin}, Owner: paladin}
-	if got := pet.GetMetadata().Class; got != proto.Class_ClassUnknown {
-		t.Errorf("pet class = %v, want unknown", got)
-	}
-	if got := NewTarget(&proto.Target{}, 0).GetMetadata().Class; got != proto.Class_ClassUnknown {
-		t.Errorf("target class = %v, want unknown", got)
-	}
-}
-
-func TestMetadataCarriesTheTalentLink(t *testing.T) {
-	linked := &Spell{ActionID: ActionID{SpellID: 100}, Talent: 1310735}
-	inherits := &Aura{ActionID: ActionID{SpellID: 100}}
-	own := &Aura{ActionID: ActionID{SpellID: 101}, Talent: 1310736}
-	none := &Aura{ActionID: ActionID{SpellID: 102}}
-
-	metadata := (&Unit{Spellbook: []*Spell{linked}, auraTracker: auraTracker{auras: []*Aura{inherits, own, none}}}).GetMetadata()
-	if got := metadata.Spells[0].Talent; got != 1310735 {
-		t.Errorf("spell talent = %d, want 1310735", got)
-	}
-	if got := MapSlice(metadata.Auras, func(a *proto.AuraStats) int32 { return a.Talent }); !slices.Equal(got, []int32{1310735, 1310736, 0}) {
-		t.Errorf("aura talents = %v, want its spell's, its own, none", got)
-	}
-}
-
 func TestMetadataShiftSpellsEmptyWithoutForms(t *testing.T) {
 	unit := &Unit{Spellbook: []*Spell{{ActionID: ActionID{SpellID: 100}, CastRequirement: chargeRequirement}}}
 	metadata := unit.GetMetadata()

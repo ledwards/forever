@@ -83,6 +83,9 @@ type Unit struct {
 	// Whether this unit is able to perform actions.
 	enabled bool
 
+	// A pet its owner set on the target before the pull: its rotation and swings run before 0.
+	engagedBeforePull bool
+
 	// Stats this Unit will have at the very start of each Sim iteration.
 	// Includes all equipment / buffs / permanent effects but not temporary
 	// effects from items / abilities.
@@ -179,7 +182,8 @@ type Unit struct {
 	// Used for applying the effect of a hardcast spell when casting finishes.
 	//  For channeled spells, only Expires is set.
 	// No more than one cast may be active at any given time.
-	Hardcast Hardcast
+	Hardcast         Hardcast
+	pickingAtCastEnd bool // The rotation is picking what follows the hardcast at its end, before it lands.
 	// Aura that reduces dodge/parry/block to 0 while casting.
 	HardcastAvoidanceAura *Aura
 
@@ -914,10 +918,12 @@ func (unit *Unit) reset(sim *Simulation, _ Agent) {
 
 	unit.resetCDs(sim)
 	unit.Hardcast.Expires = startingCDTime
+	unit.pickingAtCastEnd = false
 	unit.ChanneledDot = nil
 	unit.QueuedSpell = nil
 	unit.endRotationCast()
 	unit.DistanceFromTarget = unit.StartDistanceFromTarget
+	unit.engagedBeforePull = false
 	unit.Metrics.reset()
 	unit.ResetStatDeps()
 	unit.statsWithoutDeps = unit.initialStatsWithoutDeps
@@ -1037,24 +1043,23 @@ func (unit *Unit) metadata(casters ...*Unit) *proto.UnitMetadata {
 		return &proto.SpellStats{
 			Id: rankedID(spell.ActionID),
 
-			IsCastable:      spell.Flags.Matches(SpellFlagAPL),
-			IsChanneled:     spell.Flags.Matches(SpellFlagChanneled),
-			IsMajorCooldown: spell.Flags.Matches(SpellFlagMCD),
-			HasDot:          spell.dots != nil || spell.aoeDot != nil || (spell.RelatedDotSpell != nil && (spell.RelatedDotSpell.dots != nil || spell.RelatedDotSpell.aoeDot != nil)),
-			HasShield:       spell.shields != nil || spell.selfShield != nil,
-			PrepullOnly:     spell.Flags.Matches(SpellFlagPrepullOnly),
-			EncounterOnly:   spell.Flags.Matches(SpellFlagEncounterOnly),
-			HasCastTime:     spell.DefaultCast.CastTime > 0,
-			IsFriendly:      spell.Flags.Matches(SpellFlagHelpful),
-			IsPotion:        spell.Flags.Matches(SpellFlagPotion),
-			IsConjured:      spell.Flags.Matches(SpellFlagConjured),
-			HasExpectedTick: spell.expectedTickDamageInternal != nil,
-			HasMissileSpeed: spell.MissileSpeed > 0.0 || spell.MissileMinDuration > 0,
-			HasRanks:        spell.Rank > 0,
-			Category:        spell.category(),
-			Group:           spell.MenuGroup,
-			FromTalent:      spell.Source == SourceTalent,
-			Talent:          spell.Talent,
+			IsCastable:         spell.Flags.Matches(SpellFlagAPL),
+			IsChanneled:        spell.Flags.Matches(SpellFlagChanneled),
+			IsMajorCooldown:    spell.Flags.Matches(SpellFlagMCD),
+			HasDot:             spell.dots != nil || spell.aoeDot != nil || (spell.RelatedDotSpell != nil && (spell.RelatedDotSpell.dots != nil || spell.RelatedDotSpell.aoeDot != nil)),
+			HasShield:          spell.shields != nil || spell.selfShield != nil,
+			PrepullOnly:        spell.Flags.Matches(SpellFlagPrepullOnly),
+			EncounterOnly:      spell.Flags.Matches(SpellFlagEncounterOnly),
+			HasCastTime:        spell.DefaultCast.CastTime > 0,
+			IsFriendly:         spell.Flags.Matches(SpellFlagHelpful),
+			IsPotion:           spell.Flags.Matches(SpellFlagPotion),
+			IsConjured:         spell.Flags.Matches(SpellFlagConjured),
+			HasExpectedTick:    spell.expectedTickDamageInternal != nil,
+			HasExpectedInitial: spell.expectedInitialDamageInternal != nil,
+			HasMissileSpeed:    spell.MissileSpeed > 0.0 || spell.MissileMinDuration > 0,
+			HasRanks:           spell.Rank > 0,
+			Category:           spell.category(),
+			Group:              spell.MenuGroup,
 		}
 	})
 
@@ -1062,14 +1067,9 @@ func (unit *Unit) metadata(casters ...*Unit) *proto.UnitMetadata {
 		return !aura.ActionID.IsEmptyAction()
 	})
 	metadata.Auras = MapSlice(aplAuras, func(aura *Aura) *proto.AuraStats {
-		group, talent := aura.MenuGroup, aura.Talent
-		if spell := unit.auraSpell(aura); spell != nil {
-			if group == "" {
-				group = spell.MenuGroup
-			}
-			if talent == 0 {
-				talent = spell.Talent
-			}
+		group := aura.MenuGroup
+		if spell := unit.auraSpell(aura); spell != nil && group == "" {
+			group = spell.MenuGroup
 		}
 		return &proto.AuraStats{
 			Id:                 rankedID(aura.ActionID),
@@ -1078,7 +1078,6 @@ func (unit *Unit) metadata(casters ...*Unit) *proto.UnitMetadata {
 			HasExclusiveEffect: len(aura.ExclusiveEffects) > 0,
 			Category:           auraCategory(aura, casters),
 			Group:              group,
-			Talent:             talent,
 		}
 	})
 

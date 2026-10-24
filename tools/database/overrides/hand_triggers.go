@@ -35,6 +35,16 @@ var HandTriggers = []HandTrigger{
 		Source: "game-files-rows",
 	},
 	{
+		Spell:    1310905,
+		Triggers: 1280353,
+		Replaces: 20924,
+		Reason: "Consecrated Ground's talent aura (a dummy) rides the mark Consecration's ground puts on the first 4 enemies " +
+			"inside it, 1280353: same name and class set, the bonus damage's dummy with its 0.042 coefficient and a " +
+			"Holy damage from caster mod whose points the server sets from the talent; the tooltip names the " +
+			"Consecration rank 20924 instead. In the log the mark lands at the cast and drops 0.6 sec after the last tick",
+		Source: "combat log, Consecration Rank 2 with Consecrated Ground 2/2, 2026-10-17",
+	},
+	{
 		Spell:    1323967,
 		Triggers: 1323969,
 		Reason: "Gore Drinker's talent aura (two dummies) applies the buff its tooltip describes: same name, class " +
@@ -90,5 +100,13 @@ var HandTriggers = []HandTrigger{
 		Replaces: 11307,
 		Reason:   "Fire Nova Rank 5 hits for 408428, the level 52 Fire Nova Rank 5 row, as ranks 1 and 2 hit for theirs",
 		Source:   "combat log, Fire Nova Ranks 1 and 2, 2026-10-07",
+	},
+	{
+		Spell:    1252526,
+		Triggers: 1252543,
+		Reason: "Caustic Smog Potion's cloud: 1252526's E_CREATE_AREATRIGGER (area trigger 39425) lasts 12 sec and " +
+			"puts 1252543 on the enemies inside it; the tooltip reads $1252543s1 Nature damage every $1252543t1 sec, " +
+			"and the potion's 1252525 names 1252543 among its tooltip references",
+		Source: "tooltip",
 	},
 }

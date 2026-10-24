@@ -47,3 +47,27 @@ func (value *APLValueUnitDistance) GetFloat(sim *Simulation) float64 {
 func (value *APLValueUnitDistance) String() string {
 	return "Unit Distance From Target"
 }
+
+type APLValueUnitMovementSpeed struct {
+	DefaultAPLValueImpl
+	unit UnitReference
+}
+
+func (rot *APLRotation) newValueUnitMovementSpeed(config *proto.APLValueUnitMovementSpeed, _ *proto.UUID) APLValue {
+	unit := rot.GetSourceUnit(config.SourceUnit)
+	if unit.Get() == nil {
+		return nil
+	}
+	return &APLValueUnitMovementSpeed{
+		unit: unit,
+	}
+}
+func (value *APLValueUnitMovementSpeed) Type() proto.APLValueType {
+	return proto.APLValueType_ValueTypeFloat
+}
+func (value *APLValueUnitMovementSpeed) GetFloat(sim *Simulation) float64 {
+	return value.unit.Get().GetMovementSpeed()
+}
+func (value *APLValueUnitMovementSpeed) String() string {
+	return "Movement Speed"
+}

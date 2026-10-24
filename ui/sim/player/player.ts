@@ -40,7 +40,7 @@ import { Database } from '../proto/database';
 import { enchantWeaponDamageEP, EquippedItem, getWeaponDpsStatsBySlot } from '../proto/equipped_item';
 import { Gear, ItemSwapGear } from '../proto/gear';
 import { canEquipEnchant, canEquipItem, enchantAppliesToItem, isPVPItem } from '../proto/items';
-import { specTypeFunctions, withSpec } from '../proto/spec_functions';
+import { simpleSpecRotationFromJson, specTypeFunctions, withSpec } from '../proto/spec_functions';
 import type { ClassOptions, ClassSpecs, SpecClasses, SpecOptions, SpecRotation, SpecTalents, SpecTypeFunctions } from '../proto/spec_types';
 import { Stats, UnitStat } from '../proto/stats';
 import { AL_CATEGORY_HARD_MODE, emptyUnitReference, getTalentTreePoints, newUnitReference, raceToFaction } from '../proto/utils';
@@ -93,25 +93,21 @@ export class UnitMetadata {
 	private name: string;
 	private auras: Array<AuraStats>;
 	private spells: Array<SpellStats>;
+	private talents: Array<ActionId>;
 	private shiftSpells: Array<ActionId>;
-	private unitClass: Class;
 	private last: UnitMetadataProto;
 
 	constructor() {
 		this.name = '';
 		this.auras = [];
 		this.spells = [];
+		this.talents = [];
 		this.shiftSpells = [];
-		this.unitClass = Class.ClassUnknown;
 		this.last = UnitMetadataProto.create();
 	}
 
 	getName(): string {
 		return this.name;
-	}
-
-	getClass(): Class {
-		return this.unitClass;
 	}
 
 	getAuras(): Array<AuraStats> {
@@ -120,6 +116,11 @@ export class UnitMetadata {
 
 	getSpells(): Array<SpellStats> {
 		return this.spells.slice();
+	}
+
+	/** The talents the unit has points in, each at the rank it holds. */
+	getTalents(): Array<ActionId> {
+		return this.talents.slice();
 	}
 
 	/** The spells the APL can cast that shift the unit into a form, in form id order. */
@@ -143,7 +144,8 @@ export class UnitMetadata {
 			};
 		});
 
-		const [newShiftSpells] = await Promise.all([
+		const [newTalents, newShiftSpells] = await Promise.all([
+			Promise.all(metadata.talents.map(talent => ActionId.fromProto(talent).fill())),
 			Promise.all(metadata.shiftSpells.map(id => ActionId.fromProto(id).fill())),
 			...[...newSpells, ...newAuras].map(newSpell => newSpell.id.fill().then(newId => (newSpell.id = newId))),
 		]);
@@ -152,8 +154,8 @@ export class UnitMetadata {
 		this.name = metadata.name;
 		this.spells = dropLoneRanks(newSpells).sort((a, b) => stringComparator(a.id.name, b.id.name));
 		this.auras = dropLoneRanks(newAuras).sort((a, b) => stringComparator(a.id.name, b.id.name));
+		this.talents = newTalents.sort((a, b) => stringComparator(a.name, b.name));
 		this.shiftSpells = newShiftSpells;
-		this.unitClass = metadata.class;
 		return true;
 	}
 }
@@ -725,10 +727,11 @@ export class Player<SpecType extends Spec> {
 	}
 
 	setConsumes(newConsumes: ConsumesSpec) {
-		if (ConsumesSpec.equals(this.slice().consumables, newConsumes)) return;
+		const adjustedConsumes = this.itemSwapSettings.getGear().adjustSwapImbues(this.getGear().adjustImbues(newConsumes));
+		if (ConsumesSpec.equals(this.slice().consumables, adjustedConsumes)) return;
 
 		// Make a defensive copy
-		this.patch('consumables', ConsumesSpec.clone(newConsumes));
+		this.patch('consumables', ConsumesSpec.clone(adjustedConsumes));
 	}
 
 	equipItem(slot: ItemSlot, newItem: EquippedItem | null) {
@@ -888,8 +891,7 @@ export class Player<SpecType extends Spec> {
 		// DW Penalty is a fixed 19%
 		const dualWieldHitCap = oneHandHitCap + 19;
 		const hasOffhandWeapon = this.isDualWielding();
-		// Due to warrior HS bug, hit cap for crit cap calculation is the one-hand hit cap, not the dual-wield one
-		const meleeHitCap = hasOffhandWeapon && this.getClass() != Class.ClassWarrior ? dualWieldHitCap : oneHandHitCap;
+		const meleeHitCap = hasOffhandWeapon ? dualWieldHitCap : oneHandHitCap;
 		const dodgeCap = currentStats.finalStats?.pseudoStats[PseudoStat.PseudoStatMainHandDodgePercent] || 0;
 		const parryCap = this.getInFrontOfTarget() ? currentStats.finalStats?.pseudoStats[PseudoStat.PseudoStatMainHandParryPercent] || 0 : 0;
 		const expertiseCap = dodgeCap + parryCap;
@@ -947,18 +949,7 @@ export class Player<SpecType extends Spec> {
 	}
 
 	getSimpleRotation(): SpecRotation<SpecType> {
-		const jsonStr = this.aplRotation_.simple?.specRotationJson || '';
-		if (!jsonStr) {
-			return this.specTypeFunctions.rotationCreate();
-		}
-
-		try {
-			const json = JSON.parse(jsonStr);
-			return this.specTypeFunctions.rotationFromJson(json);
-		} catch (e) {
-			console.warn(`Error parsing rotation spec options: ${e}\n\nSpec options: '${jsonStr}'`);
-			return this.specTypeFunctions.rotationCreate();
-		}
+		return simpleSpecRotationFromJson(this.specTypeFunctions, this.aplRotation_.simple?.specRotationJson || '');
 	}
 
 	setSimpleRotation(newRotation: SpecRotation<SpecType>) {

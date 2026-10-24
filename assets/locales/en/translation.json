@@ -7,14 +7,28 @@
 			"toggle": "Toggle navigation"
 		},
 		"home": {
-			"title": "WoWSims - Forever",
-			"description": "A powerful simulation tool for World of Warcraft: Forever",
-			"welcomeDescription": "Welcome to WoWSims - Forever! This is a community-driven project to provide class and raid simulations for World of Warcraft® Forever together with the leading theorycrafters and class representatives."
+			"title": "WoWSims - Forever DPS & Gear Simulators",
+			"description": "Free, open-source World of Warcraft® Forever simulators. Sim your DPS, compare gear and optimize your character.",
+			"heading": "<expansion>Forever</expansion> Simulations",
+			"allSpecs": "All Specializations",
+			"welcomeDescription": "<brand>WoWSims</brand> is a fan-made open-source project started in 2021 with the goal of providing user-friendly tools for players to simulate their gameplay in <bold>World of Warcraft® Classic</bold>. Since then we've supported every Classic release, and now we're carrying that forward into <expansion>World of Warcraft®: Forever</expansion>. It's thanks to dozens of developers, hundreds of players, and thousands of hours of time that we've been able to keep the project going so that our users can continue to make the most out of their gameplay."
 		},
 		"header": {
 			"wowsims": "WoWSims",
-			"expansion": "Forever",
-			"supportDevs": "Support our devs"
+			"subtitle": "World of Warcraft Simulations",
+			"discord": "Discord",
+			"github": "GitHub",
+			"addon": "Download the WoWSims Exporter addon",
+			"patreon": "Become a Patron!"
+		},
+		"actions": {
+			"discord": "Join our Discord",
+			"github": "Contribute on GitHub",
+			"addon": "Get the Exporter addon"
+		},
+		"footer": {
+			"copyright": "© 2021-{{year}} WoWSims team",
+			"disclaimer": "A fan-made project, not affiliated with Blizzard Entertainment."
 		}
 	},
 	"common": {
@@ -427,11 +441,23 @@
 			"from_player": "from #{{number}}",
 			"rank": "Rank {{rank}}"
 		},
-		"close": "Close"
+		"close": "Close",
+		"release_info": {
+			"game_version": "Game {{version}}",
+			"built": "Built {{date}}",
+			"commit_link": "View commit {{commit}} on GitHub",
+			"sim_build": "Sim build",
+			"changed": "Changed {{date}}",
+			"details": "Release details",
+			"presets": "{{spec}} presets",
+			"engine": "{{spec}} engine"
+		}
 	},
 	"sim": {
 		"title": "Forever {{spec}} {{class}} simulator",
 		"description": "{{spec}} {{class}} simulations for World of Warcraft® Forever.",
+		"title_class": "Forever {{class}} simulator",
+		"description_class": "{{class}} simulations for World of Warcraft® Forever.",
 		"basic_bis_disclaimer": "<p>Preset gear lists are intended as rough approximations of BIS, and will often not be the absolute highest-DPS setup for you. Your optimal gear setup will depend on many factors; that's why we have a sim!</p><p>Items may also be omitted from the presets if they are highly contested and clearly better utilized on other classes, to encourage equitable gearing for the raid as a whole.</p>",
 		"healing_sim_disclaimer": "*** WARNING - USE AT YOUR OWN RISK ***\n\nThe entire concept of a healing sim is EXPERIMENTAL. All results should be taken with an EXTREMELY large grain of salt.\n\nThis tool is currently more similar to a spreadsheet than a true sim. Options for specifying incoming damage profiles in order to have proper reactive rotations have not yet been added.",
 		"notice_native_download": {
@@ -590,6 +616,15 @@
 				"chance_unknown": "In-game validation needed. Currently using an estimated proc chance"
 			},
 			"not_yet_implemented": "Not yet implemented",
+			"not_fully_supported": "Not fully supported:",
+			"partial_set_bonus": {
+				"grovekeeper_eclipse_4": "only spell damage against Demons is raised, not the damage of melee attacks.",
+				"wildheart_raiment_5": "only the mana on a spell cast is modelled, not the energy on a melee attack or the rage when struck by one.",
+				"implements_of_unspoken_names_3": "the extra 5% damage on Firebolt and Lash of Pain is not modelled.",
+				"dreadnaughts_battlegear_4": "Taunt and Challenging Shout always hit in the sim, so the bonus changes nothing.",
+				"dreadnaughts_battlegear_8": "only heals a healer casts in the sim take the bonus, not the incoming healing the tank sim models.",
+				"battleplate_of_glory_3": "the sim does not cast Intervene, so the bonus changes nothing."
+			},
 			"set_bonus_warnings": "This item set has the following warnings:",
 			"set_bonus_piece": "{{pieces}}-piece:",
 			"area_stats": "Only while the encounter is in one of these areas:"
@@ -611,7 +646,11 @@
 			"spell_power": "Spell Power",
 			"spell_haste": "Spell Haste",
 			"crit_percent": "Crit %",
-			"stamina": "Stamina"
+			"stamina": "Stamina",
+			"fire_resistance": "Fire Resistance",
+			"frost_resistance": "Frost Resistance",
+			"shadow_resistance": "Shadow Resistance",
+			"nature_resistance": "Nature Resistance"
 		},
 		"party_buffs": {
 			"title": "Party Buffs",
@@ -646,7 +685,12 @@
 			"phys_dmg_reduction": "Phys Dmg Reduction",
 			"cast_speed": "Cast Speed",
 			"phys_dmg": "Phys Dmg",
-			"spell_dmg": "Spell Dmg"
+			"spell_dmg": "Spell Dmg",
+			"major_armor_reduction": "Major Armor Reduction",
+			"minor_armor_reduction": "Minor Armor Reduction",
+			"attack_power_reduction": "Attack Power Reduction",
+			"hit_chance_reduction": "Hit Chance Reduction",
+			"attack_speed_reduction": "Attack Speed Reduction"
 		},
 		"other": {
 			"title": "Other",
@@ -920,7 +964,9 @@
 				"title": "Scrolls"
 			},
 			"miscellaneous": {
-				"title": "Miscellaneous"
+				"title": "Miscellaneous",
+				"offensive": "Offensive",
+				"defensive": "Defensive"
 			}
 		},
 		"encounter": {
@@ -984,21 +1030,9 @@
 				"label": "Execute Duration 20 (%)",
 				"tooltip": "Percentage of the total encounter duration, for which the targets will be considered to be in execute range (< 20% HP) for the purpose of effects like Warrior Execute."
 			},
-			"execute_duration_25": {
-				"label": "Execute Duration 25 (%)",
-				"tooltip": "Percentage of the total encounter duration, for which the targets will be considered to be in execute range (< 25% HP)."
-			},
 			"execute_duration_35": {
 				"label": "Execute Duration 35 (%)",
 				"tooltip": "Percentage of the total encounter duration, for which the targets will be considered to be in execute range (< 35% HP)."
-			},
-			"execute_duration_45": {
-				"label": "Execute Duration 45 (%)",
-				"tooltip": "Percentage of the total encounter duration, for which the targets will be considered to be in execute range (< 45% HP)."
-			},
-			"duration_below_high_hp": {
-				"label": "Duration spent below high-HP regime (%)",
-				"tooltip": "Percentage of the total encounter duration, for which the targets are considered out of range for effects like <90% HP or <80% HP."
 			},
 			"encounter_preset": {
 				"label": "Encounter",
@@ -1123,7 +1157,6 @@
 	},
 	"bulk_tab": {
 		"title": "Batch",
-		"description": "<span className=\"bold\">Batch Simming</span> is a new feature akin to the <span className=\"bold\">Top Gear</span> sim on <a href=\"https://raidbots.com\" target=\"_blank\">Raidbots.com</a> that allows you to select multiple items and sim them to find the best combinations.<br />This is an <span className=\"text-brand\">Alpha</span> feature, so if you have feedback or found a bug, please report it!",
 		"download_native": "Download the local sim for faster results.",
 		"tabs": {
 			"setup": "Setup",
@@ -1152,8 +1185,21 @@
 			"total_iterations": "Minimum iterations",
 			"total_iterations_tooltip": "The batch sims at least this many iterations. The error target adds more as it runs.",
 			"groups": {
+				"encounters": "Encounters",
 				"enchants": "Enchants",
 				"frozen_slots": "Frozen slots"
+			},
+			"encounters": {
+				"description": "The batch runs once per encounter, and each encounter gets its own results. Save encounters in Settings → Saved Encounters.",
+				"current": "Current encounter",
+				"presets": "Presets",
+				"saved": "Saved",
+				"empty": "No saved encounters yet. Save one in Settings → Saved Encounters to run the batch against it too.",
+				"duplicate": "Same as another encounter, skipped",
+				"count": "Encounters",
+				"health_summary": "Health",
+				"targets_one": "{{count}} target",
+				"targets_other": "{{count}} targets"
 			},
 			"iterations": "Iterations",
 			"freeze_ring": {
@@ -1229,13 +1275,30 @@
 			"run_simulation": "Run a simulation to view results",
 			"equip_button": "Equip",
 			"gear_equipped": "Batch gear equipped!",
-			"current_gear": "Current Gear",
+			"current_gear": "Current gear",
 			"margin_of_error": "95% confidence interval of the mean DPS. Rankings closer than this can change between runs.",
-			"tied_group": "Statistically tied — the order within this group can change between runs"
+			"tied_group": "Statistically tied — the order within this group can change between runs",
+			"encounters": "Encounters",
+			"encounters_caption": "The best set's DPS and its gain over your current gear, per encounter. Pick one to see its ranking.",
+			"current": "Current",
+			"export_csv": "Export CSV"
+		},
+		"compare": {
+			"button": "Compare encounters",
+			"title": "Compare encounters",
+			"short_set": "S{{number}}",
+			"readout_rank": "#{{rank}} · {{dps}} DPS",
+			"readout_current": "{{dps}} DPS",
+			"readout_spread": "±{{spread}} per fight",
+			"not_ranked": "Not ranked",
+			"table_caption": "Each set's gain over your current gear in every encounter, its DPS underneath. A dashed cell is an encounter that did not rank the set; point at a cell for its rank and spread.",
+			"table_set": "Gear set",
+			"table_legend_best": "Best in the encounter",
+			"table_legend_gap": "Not ranked in that encounter"
 		},
 		"import_modal": {
 			"title": "Bag Item Import",
-			"description_line1": "Import bag items from a JSON file, which can be created by the WowSimsExporter in-game AddOn.",
+			"description_line1": "Import bag items from a JSON file, which can be created by the WoWSimsExporter in-game AddOn.",
 			"description_line2": "To import, upload the file or paste the text below, then click, 'Import'."
 		}
 	},
@@ -1479,6 +1542,14 @@
 					"duration_tooltip": "Amount of time the character should move.",
 					"move_duration_tooltip": "The characters moves for the given duration."
 				},
+				"pet_attack": {
+					"label": "Pet Attack",
+					"tooltip": "Works like /petattack in-game. Tells the pet to move/attack."
+				},
+				"start_attack": {
+					"label": "Start Attack",
+					"tooltip": "Works like /startattack in game. Turns the melee attack on, from any range: the off hand's first swing comes half a swing later, so starting it on the way in has the off hand nearer ready on arrival. Starting Auto Shot turns it off again."
+				},
 				"custom_rotation": {
 					"label": "Custom Rotation",
 					"tooltip": "INTERNAL ONLY"
@@ -1598,6 +1669,10 @@
 					"label": "Distance to Unit",
 					"tooltip": "Distance to the unit"
 				},
+				"unit_movement_speed": {
+					"label": "Movement Speed",
+					"tooltip": "Run speed of the unit in yards per second, with its speed effects (7 for a player with none)"
+				},
 				"current_health": {
 					"label": "Current Health",
 					"tooltip": "Current health of the unit"
@@ -1612,11 +1687,11 @@
 				},
 				"current_mana": {
 					"label": "Current Mana",
-					"tooltip": "Amount of currently available Mana."
+					"tooltip": "Amount of currently available Mana of the unit."
 				},
 				"current_mana_percent": {
 					"label": "Current Mana (%)",
-					"tooltip": "Amount of currently available Mana, as a percentage."
+					"tooltip": "Amount of currently available Mana of the unit, as a percentage."
 				},
 				"max_mana": {
 					"label": "Max Mana",
@@ -1703,6 +1778,14 @@
 					"label": "Spell Known",
 					"tooltip": "<b>True</b> if the spell is currently known, otherwise <b>False</b>."
 				},
+				"talent_known": {
+					"label": "Talent Known",
+					"tooltip": "<b>True</b> if the talent has at least the chosen rank, otherwise <b>False</b>."
+				},
+				"talent_rank": {
+					"label": "Talent Rank",
+					"tooltip": "The rank the player holds in the talent, <b>0</b> without points."
+				},
 				"current_cost": {
 					"label": "Current Cost",
 					"tooltip": "Returns current resource cost of spell"
@@ -1711,6 +1794,16 @@
 					"label": "Can Cast",
 					"tooltip": "<b>True</b> if all requirements for casting the spell are currently met, otherwise <b>False</b>.",
 					"full_description": "<p>The <b>Cast Spell</b> action does not need to be conditioned on this, because it applies this check automatically.</p>"
+				},
+				"is_hit_capped": {
+					"label": "Is Hit Capped",
+					"tooltip": "<b>True</b> if the spell cannot miss the current target, otherwise <b>False</b>.",
+					"full_description": "<p>Melee and ranged attacks use the special-attack (soft) hit cap, without the dual-wield penalty of auto attacks. Wand shots count physical and ranged hit. Other spells count spell hit and school hit, and a binary spell also counts the target's resistance.</p><p>The check reads only the spell's defense type. It does not know that shouts and seals always hit, or that Judgement rolls its miss through another spell.</p>"
+				},
+				"is_expertise_capped": {
+					"label": "Is Expertise Capped",
+					"tooltip": "<b>True</b> if the current target can neither dodge nor parry the spell, otherwise <b>False</b>.",
+					"full_description": "<p>Parry counts only when you are in front of the target. Spells and ranged attacks cannot be dodged or parried and always return <b>True</b>.</p><p>The check reads only the spell's defense type, so it still counts dodge and parry for specials that never roll them, such as Backstab, Ambush and Overpower.</p>"
 				},
 				"is_ready": {
 					"label": "Is Ready",
@@ -1731,6 +1824,10 @@
 				"cpm": {
 					"label": "CPM",
 					"tooltip": "Casts Per Minute for the spell so far in the current iteration."
+				},
+				"is_casting": {
+					"label": "Is Casting",
+					"tooltip": "<b>True</b> if this spell is currently being cast, otherwise <b>False</b>. The rotation picks its next spell at the cast end, before this one lands, so this guards lines that read what the spell will do. A channel is <b>Is Channeling</b>."
 				},
 				"is_channeling": {
 					"label": "Is Channeling",
@@ -1768,13 +1865,17 @@
 					"label": "Spell in Flight",
 					"tooltip": "<b>True</b> if this spell is currently in flight, otherwise <b>False</b>."
 				},
+				"spell_expected_dpet": {
+					"label": "Spell Expected DPET",
+					"tooltip": "The expected damage of a spell if you cast it now, assuming it lands. Includes cast time, GCD time, and averaged crit. Only damage that lands before the fight ends counts."
+				},
 				"aura_known": {
 					"label": "Aura Known",
 					"tooltip": "<b>True</b> if the aura is currently known, otherwise <b>False</b>."
 				},
 				"aura_active": {
 					"label": "Aura Active",
-					"tooltip": "<b>True</b> if the aura is currently active, otherwise <b>False</b>. With reaction time, a proc only counts once it has been up for the player reaction time (configured in Settings), and your own auras still count for that long after they run out."
+					"tooltip": "<b>True</b> if the aura is currently active AND it has been active for at least as long as the player reaction time (configured in Settings), otherwise <b>False</b>."
 				},
 				"aura_active_with_reaction_time": {
 					"label": "[DEPRECATED] Aura Active (with Reaction Time)",
@@ -1855,6 +1956,10 @@
 					"label": "Bleed Is Active",
 					"tooltip": "<b>True</b> if one of your bleeds is on the target, or if <b>Assume Bleed Always Active</b> is enabled, otherwise <b>False</b>."
 				},
+				"druid_excess_energy": {
+					"label": "Excess Energy",
+					"tooltip": "Your current Energy minus what you need to keep for your upcoming Rip and Rake refreshes, after counting the Energy you will regenerate before each one. Spend on a builder only while it covers the builder's cost."
+				},
 				"dot_is_active_on_all_targets": {
 					"label": "Dot Is Active On All Targets",
 					"tooltip": "<b>True</b> if the specified dot is currently ticking on all targets, otherwise <b>False</b>."
@@ -1899,6 +2004,14 @@
 					"label": "Assigned Curse Is Active",
 					"tooltip": "Returns true is assigned curse is active on target"
 				},
+				"warlock_assigned_curse_is_active_on_all_targets": {
+					"label": "Assigned Curse Is Active On All Targets",
+					"tooltip": "<b>True</b> while your assigned curse is on every target, otherwise <b>False</b>. With no curse assigned it is <b>False</b>."
+				},
+				"warlock_bane_is_active_on_all_targets": {
+					"label": "Bane Is Active On All Targets",
+					"tooltip": "<b>True</b> while one of your Banes (Agony, Doom or Havoc) is on every target, otherwise <b>False</b>. A target holds one Bane at a time."
+				},
 				"warlock_is_assigned_curse": {
 					"label": "Is Assigned Curse",
 					"tooltip": "True if the warlock is assigned the specified curse"
@@ -1935,7 +2048,7 @@
 					"target_spell": "Target Spell",
 					"target_spell_tooltip": "The spell (ie. Death Wish) you want to fit within the cooldown of the Base Spell.",
 					"align_cd_end": "Align target spell to encounter end",
-					"align_cd_end_tooltip": "When checked will try to align the CD usage to the end of the encounter. This is useful for cooldowns/specs that benefit for example from execute."
+					"align_cd_end_tooltip": "When checked, aligns the target spell to the end of the encounter, which is useful for cooldowns or specs that benefit from execute. Without a base spell it casts early while a later use would still get at least half its buff before the encounter ends, and otherwise holds it until its buff runs to the end of the encounter. The offset only applies with a base spell."
 				},
 				"selected_potion": {
 					"label": "Selected Potion",
@@ -1952,10 +2065,6 @@
 				"dot_base_duration": {
 					"label": "Dot Base Duration",
 					"tooltip": "The base duration of the DoT."
-				},
-				"dot_crit_percent_increase": {
-					"label": "Dot Crit Chance Increase %",
-					"tooltip": "How much higher a new DoT's Critical Strike Chance would be compared to the old."
 				},
 				"dot_tick_rate_percent_increase": {
 					"label": "Dot Tick Rate Increase %",
@@ -1994,10 +2103,7 @@
 			},
 			"execute_phases": {
 				"e20": "20%",
-				"e25": "25%",
-				"e35": "35%",
-				"e45": "45%",
-				"e90": "90%"
+				"e35": "35%"
 			},
 			"totem_types": {
 				"earth": "Earth",
@@ -2080,7 +2186,10 @@
 					"non_instant_spells": "Non-instant Spell",
 					"friendly_spells": "Friendly Spell",
 					"expected_dot_spells": "DoT Spell",
-					"spells_with_travelTime": "Spell"
+					"expected_damage_spells": "Damage Spell",
+					"spells_with_travelTime": "Spell",
+					"talents": "Talent",
+					"talent_ranks": "Talent"
 				},
 				"field_configs": {
 					"type": "Type",
@@ -2088,7 +2197,7 @@
 					"min_icd": "Min ICD",
 					"min_icd_tooltip": "If non-zero, filter out any procs that either lack an ICD or for which the ICD is smaller than the specified value (in seconds). This can be useful for certain snapshotting checks, since procs with low ICDs are often too weak to snapshot.",
 					"include_reaction_time": "Include Reaction Time",
-					"include_reaction_time_tooltip": "If checked, will use the configured <b>Input Delay</b>. For Aura Active, your own auras show up right away, but when they run out they only drop off after the delay.",
+					"include_reaction_time_tooltip": "If checked, will use the configured reaction time.",
 					"use_base_value": "Use base value",
 					"use_base_value_tooltip": "If checked, will compare the current DoT to the the base value (on encounter start) of the DoT.",
 					"variable_assignment_tooltip": "Value to assign to variable '{{variableName}}'"
@@ -2147,6 +2256,12 @@
 		},
 		"options": {
 			"rogue": {
+				"use_backstab": {
+					"label": "Use Backstab"
+				},
+				"use_expose_armor": {
+					"label": "Use Expose Armor"
+				},
 				"apply_poisons_manually": {
 					"label": "Configure poisons manually",
 					"tooltip": "Prevent automatic poison configuration that is based on equipped weapons."
@@ -2179,7 +2294,7 @@
 				},
 				"time_to_weave": {
 					"label": "Time to weave (ms)",
-					"tooltip": "Amount of time, in milliseconds, between when you start moving towards the boss and when you re-engage your ranged autos."
+					"tooltip": "How long, in milliseconds, you stay in melee after the weave swing before walking back out. Never shorter than your input delay."
 				},
 				"use_aimed": {
 					"label": "Use Aimed Shot",
@@ -2243,6 +2358,7 @@
 			"sim_1_death": "Simulate a Death",
 			"all_targets": "All Targets",
 			"target_number": "Target {{number}}",
+			"group_ranks": "Group ranks",
 			"damage": {
 				"dps_histogram": "DPS Histogram"
 			},
@@ -2472,16 +2588,23 @@
 				"crush": "Crush",
 				"glance": "Glance",
 				"block": "Block",
-				"critical_block": "Critical Block"
+				"critical_block": "Critical Block",
+				"shield": "Shield"
 			},
 			"tooltip_table": {
 				"type": "Type",
 				"count": "Count",
 				"average": "Average",
+				"min": "Min",
+				"max": "Max",
 				"amount": "Amount",
 				"per_cast": "Per Cast",
 				"per_hit": "Per Hit",
 				"ticks": "Ticks"
+			},
+			"custom_metrics": {
+				"group": "Spec metrics",
+				"divine_aegis": "Divine Aegis shield"
 			},
 			"unit": "Unit",
 			"damage_result": {
@@ -2673,6 +2796,7 @@
 				"off": "Off",
 				"firefox_note": "Too many workers can cause significant memory usage! If sim doesn't finish due to RAM running out use a lower number."
 			},
+			"restart_tour": "Restart Tour",
 			"restore_defaults": {
 				"button": "Restore Defaults",
 				"tooltip": "Restores all default settings (gear, consumes, buffs, talents, EP weights, etc). Saved settings are preserved.",
@@ -2680,8 +2804,161 @@
 			}
 		},
 		"download_native_sim": "Download simulator for faster simulating",
-		"native_sim_outdated": "Newer version of simulator available for download"
+		"native_sim_outdated": "Newer version of simulator available for download",
+		"forever_notice": "Forever sims are still changing rapidly and may have issues. If your results look wrong or your sim won't run, try restoring the default settings."
 	},
+		"onboarding": {
+			"label": "Tour",
+			"progress": "{{position}} / {{total}}",
+			"start": "Show me around",
+			"next": "Next",
+			"previous": "Back",
+			"skip": "Skip tour",
+			"skip_step": "Skip this step",
+			"finish": "Done",
+			"steps": {
+				"welcome": {
+					"title": "Welcome to WoWSims",
+					"body": "A short look around the page, from your gear to a finished sim. Move through it with the left and right arrow keys, or skip it any time; Sim Options can start it again."
+				},
+				"gear_tab": {
+					"title": "Gear",
+					"body": "This tab is your character's equipment: what you wear and the presets to start from."
+				},
+				"import": {
+					"title": "Import",
+					"body": "Bring in your character with the <addon>WoWSims Exporter addon</addon>, or a build from a link someone shared."
+				},
+				"gear_list": {
+					"title": "Your equipment",
+					"body": "Every slot with the item in it, its enchant and gems."
+				},
+				"gear_picker": {
+					"title": "Change an item",
+					"body": "Click a slot to open the gear picker. Choose the item there, then its enchant and gems."
+				},
+				"gear_presets": {
+					"title": "Gear sets",
+					"body": "Load a preset to start from, including sets from the community, or save your own and load it again later."
+				},
+				"enchants": {
+					"title": "Optimize enchants",
+					"body": "Let the sim choose your enchants for the best result. The cog next to it sets what it aims for."
+				},
+				"settings_tab": {
+					"title": "Settings",
+					"body": "Everything around your character for the sim: the fight, your race and professions, consumables, buffs and debuffs."
+				},
+				"encounter": {
+					"title": "Encounter",
+					"body": "The fight: how long it lasts, the target, and how much it varies."
+				},
+				"player": {
+					"title": "Player",
+					"body": "Your race, professions and the other things about your character that change the numbers."
+				},
+				"other": {
+					"title": "Spec settings",
+					"body": "Fight settings only this spec has."
+				},
+				"consumables": {
+					"title": "Consumables",
+					"body": "Potions, flasks, food and the rest you bring to the fight."
+				},
+				"buffs": {
+					"title": "Raid buffs and debuffs",
+					"body": "What your raid or party gives you, and the debuffs on the target."
+				},
+				"settings_presets": {
+					"title": "Save your settings",
+					"body": "Load a preset encounter or settings, or save your own and load them again later."
+				},
+				"talents_tab": {
+					"title": "Talents",
+					"body": "Pick your talents here, load a preset, or save your own build."
+				},
+				"rotation_tab": {
+					"title": "Rotation",
+					"body": "How the sim plays your character in the fight."
+				},
+				"rotation_auto": {
+					"title": "Automatic rotation",
+					"body": "Auto picks the community's best rotation for your talents, so most players can leave it as it is."
+				},
+				"rotation_type": {
+					"title": "Build your own",
+					"body": "Choose APL here to write your own rotation, action by action."
+				},
+				"rotation_presets": {
+					"title": "Preset rotations",
+					"body": "Click a preset to load a ready-made rotation. With APL selected, it shows the preset's full list of actions to read or change, and you can save your own here too."
+				},
+				"simulate": {
+					"title": "Run the sim",
+					"body": "Press Simulate to run the fight with everything you have set. The tour moves on by itself when the run finishes."
+				},
+				"result": {
+					"title": "Your result",
+					"body": "Your DPS from that run, and how much it varies from fight to fight. It updates every time you run the sim."
+				},
+				"results_tab": {
+					"title": "Results",
+					"body": "The details of the last run. Each tab shows one part of it."
+				},
+				"results_damage": {
+					"title": "Damage",
+					"body": "Damage by ability: how much each one did, how often it hit and crit."
+				},
+				"results_threat": {
+					"title": "Threat",
+					"body": "Threat by ability, for keeping the target on you or off you."
+				},
+				"results_healing": {
+					"title": "Healing",
+					"body": "Healing by ability."
+				},
+				"results_damage_taken": {
+					"title": "Damage taken",
+					"body": "What hit you, and how much of it you avoided."
+				},
+				"results_buffs": {
+					"title": "Buffs",
+					"body": "How often each buff was up on you."
+				},
+				"results_debuffs": {
+					"title": "Debuffs",
+					"body": "How often each debuff was up on the target."
+				},
+				"results_casts": {
+					"title": "Casts",
+					"body": "How many times you cast each ability."
+				},
+				"results_resources": {
+					"title": "Resources",
+					"body": "What you spent and gained, such as mana, rage or energy."
+				},
+				"results_timeline": {
+					"title": "Timeline",
+					"body": "One fight laid out over time: casts, buffs and resources."
+				},
+				"results_log": {
+					"title": "Log",
+					"body": "Every event of one fight, line by line."
+				},
+				"bulk_tab": {
+					"title": "Batch sim",
+					"body": "Sim many gear combinations at once to find the best of the items you have."
+				},
+				"stat_weights": {
+					"title": "Stat weights",
+					"body": "Work out how much each stat is worth to you, and set the weights the gear picker and enchant optimizer use."
+				},
+				"finish": {
+					"title": "You're set",
+					"body": "There is more to find on the page as you go. If you have a question or something looks wrong, ask us on <discord>Discord</discord>."
+				}
+			}
+		},
 	"sidebar": {
 		"iterations": "Iterations",
 		"warnings": {
@@ -2689,7 +2966,8 @@
 			"profession_requirement": "{{itemName}} requires {{professionName}}, but it is not selected.",
 			"unspent_talent_points": "You have {{count}} unspent talent point(s).",
 			"broken_talents": "These talents are missing their tier or prerequisite points, so the build is not possible in game. The sim still applies them: {{talents}}.",
-			"windfury_over_flametongue": "Windfury Totem and Flametongue Totem do not stack: only Windfury Totem applies."
+			"windfury_over_flametongue": "Windfury Totem and Flametongue Totem do not stack: only Windfury Totem applies.",
+			"elemental_stormstrike": "Stormstrike is selected, which points to a hybrid Enhancement build. Use the Enhancement sim to sim it."
 		},
 		"buttons": {
 			"simulate": "Simulate",
@@ -3026,7 +3304,9 @@
 				"with_holy_shield": " (with HS)"
 			},
 			"bonus_prefix": "Bonus",
+			"rating_suffix": "Rating",
 			"points_suffix": "Points",
+			"percent_label": "Percent",
 			"percent_suffix": "%"
 		}
 	},

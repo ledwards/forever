@@ -8,7 +8,8 @@ import (
 // Only the highest rank is registered: the mage casts the rank configured here, not every rank
 // spellData.ArcaneMissiles lists.
 func (mage *Mage) registerArcaneMissilesSpell() {
-	mage.registerArcaneMissilesRank(spellData.ArcaneMissiles.Len(), spellData.ArcaneMissiles.Highest())
+	//Rank 7 is last trainer taught spell
+	mage.registerArcaneMissilesRank(spellData.ArcaneMissiles.Len(), spellData.ArcaneMissiles.Rank(7))
 }
 
 // The channel's periodic effect names the missile it fires each tick, a rank of
@@ -21,7 +22,7 @@ func (mage *Mage) registerArcaneMissilesRank(_ int32, rank *spelldata.Spell) {
 	tickConfig.ClassSpellMask = MageSpellArcaneMissilesTick
 	// Each missile rolls when the tick fires it and lands after flying at the row's speed.
 	tickConfig.ApplyEffects = func(sim *core.Simulation, target *core.Unit, spell *core.Spell) {
-		result := spell.CalcDamage(sim, target, missileDamage.Average(), spell.OutcomeTickMagicHitAndCrit)
+		result := spell.CalcDamage(sim, target, missileDamage.Average(), spell.OutcomeMagicHitAndCrit)
 		spell.DealDamageAfterTravel(sim, result)
 		spell.SpellMetrics[target.UnitIndex].Casts--
 	}
@@ -45,7 +46,6 @@ func (mage *Mage) registerArcaneMissilesRank(_ int32, rank *spelldata.Spell) {
 		spell.Dot(target).Apply(sim)
 
 		tickSpell.SpellMetrics[target.UnitIndex].Casts++
-		tickSpell.SpellMetrics[target.UnitIndex].Hits++
 	}
 
 	mage.RegisterSpell(spellConfig)

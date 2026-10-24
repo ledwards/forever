@@ -264,8 +264,8 @@ func init() {
 			if !spell.ProcMask.Matches(spellHits) && !shot {
 				return false
 			}
-			// TODO: Verify in game that a landing while the buff is up does not roll.
-			return !result.DidCrit() && !buff.IsActive()
+			// A landing while the buff is up rolls too and refreshes it.
+			return !result.DidCrit()
 		}
 		character.ItemSwap.RegisterEnchantProc(8217, character.MakeProcTriggerAura(trigger))
 	})
@@ -286,6 +286,7 @@ func init() {
 	})
 
 	movementSpeedEnchants := []int32{
+		911,  // Enchant Boots - Minor Speed
 		2939, // Enchant Boots - Cat's Swiftness
 		2940, // Enchant Boots - Boar's Speed
 	}
@@ -293,7 +294,13 @@ func init() {
 	for _, enchantID := range movementSpeedEnchants {
 		core.NewEnchantEffect(enchantID, func(agent core.Agent) {
 			character := agent.GetCharacter()
-			aura := character.NewPassiveMovementSpeedAura("Minor Run Speed", core.ActionID{SpellID: 13889}, 0.08)
+			// The game files state the run speed as A_MOD_INCREASE_SPEED, as Strider Kick and Dash do,
+			// and only the highest of those counts, so it bids in the active category with them.
+			aura := core.MakePermanent(character.GetOrRegisterAura(core.Aura{
+				Label:    "Minor Run Speed",
+				ActionID: core.ActionID{SpellID: 13889},
+			}))
+			aura.NewActiveMovementSpeedEffect(0.08)
 
 			character.ItemSwap.RegisterEnchantProc(enchantID, aura)
 		})

@@ -66,7 +66,8 @@ List the opt-outs with `/usr/bin/grep -rn "smoke: false" ui --include=*.stories.
 `.github/workflows/run_tests.yml` has two jobs:
 
 - **`build-ui`**: `npm ci` and `test:locales`, then `fmt`, `lint:js`, `lint:css`, `make ui/generated/proto/api.ts
-go-to-ts`, `type-check`, `test:unit`, `storybook:build`, and `make dist/forever/.dirstamp`. A pull request from this
+go-to-ts`, `type-check`, `test:unit`, `storybook:build`, and `make dist/forever/.dirstamp`, with `BUILD_COMMIT` set to
+  the pull request's head so the page's release names it rather than the merge commit. A pull request from this
   repository then gets its build deployed as a Cloudflare Pages preview at a hashed `*.wowsims-forever.pages.dev`
   address, linked from one comment on the pull request; fork pull requests skip it. `preview_cleanup.yml` deletes the
   deployments when the pull request closes.

@@ -1,9 +1,8 @@
 import { ActionCategory } from '@generated/proto/api';
-import { Class } from '@generated/proto/common';
 import type { UnitMetadata } from '@sim/player/player';
 import { ActionId } from '@sim/proto/action_id';
 import { stubMetadata } from '@testing/apl/player';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { actionIdSets } from './action_id_sets';
 
@@ -26,13 +25,13 @@ const metadata = (
 	auras: Array<ReturnType<typeof aura>>,
 	spells: Array<ReturnType<typeof spell>> = [],
 	shiftSpells: Array<ActionId> = [],
-	unitClass = Class.ClassUnknown,
+	talents: Array<ActionId> = [],
 ) =>
 	stubMetadata({
 		getAuras: () => auras,
 		getSpells: () => spells,
 		getShiftSpells: () => shiftSpells,
-		getClass: () => unitClass,
+		getTalents: () => talents,
 	}) as unknown as UnitMetadata;
 
 // In form id order, as the sim lists them.
@@ -103,21 +102,18 @@ describe('castable_spells', () => {
 describe('shift spells and manual groups', () => {
 	it('lists the shift spells first, then the talent trees, the groups, Spell and the categories', async () => {
 		const warrior = [
-			spell(named(2457, 'Battle Stance'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-			spell(named(30, 'Bloodthirst'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
+			spell(named(2457, 'Battle Stance')),
+			spell(named(30, 'Bloodthirst')),
 			spell(named(31, 'Heroic Strike'), ActionCategory.ActionCategoryUnknown, { group: 'my_group' }),
-			spell(named(32, 'Mortal Strike'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
+			spell(named(32, 'Mortal Strike')),
 			spell(named(33, 'Overpower')),
 			spell(named(34, 'Recklessness'), ActionCategory.ActionCategoryCooldown),
 		];
-		expect(menu(await actionIdSets.castable_spells.getActionIDs(metadata([], warrior, stances, Class.ClassWarrior))).slice(0, 6)).toEqual([
-			'Battle Stance',
-			'Mortal Strike > Arms',
-			'Bloodthirst > Fury',
-			'Heroic Strike > my_group',
-			'Overpower > spell',
-			'Recklessness > cooldowns',
-		]);
+		expect(
+			menu(
+				await actionIdSets.castable_spells.getActionIDs(metadata([], warrior, stances, [named(12294, 'Mortal Strike'), named(23881, 'Bloodthirst')])),
+			).slice(0, 6),
+		).toEqual(['Battle Stance', 'Mortal Strike > Arms', 'Bloodthirst > Fury', 'Heroic Strike > my_group', 'Overpower > spell', 'Recklessness > cooldowns']);
 	});
 
 	it('lists the shift auras first, whatever their group, then the trees, the groups, the categories and the rest', async () => {
@@ -130,7 +126,7 @@ describe('shift spells and manual groups', () => {
 			aura(named(63, 'Flurry'), ActionCategory.ActionCategoryTalent),
 			aura(named(64, 'Recklessness'), ActionCategory.ActionCategoryCooldown),
 		];
-		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], stances, Class.ClassWarrior)))).toEqual([
+		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], stances, [named(12319, 'Flurry (Rank 5)', 5)])))).toEqual([
 			'Battle Stance',
 			'Defensive Stance',
 			'Flurry > Fury',
@@ -147,8 +143,10 @@ describe('shift spells and manual groups', () => {
 	});
 
 	it('files a talent spell with a group under the group, not its tree', async () => {
-		const grouped = [spell(named(73, 'Bloodthirst'), ActionCategory.ActionCategoryUnknown, { fromTalent: true, group: 'my_group' })];
-		expect(menu(await actionIdSets.castable_spells.getActionIDs(metadata([], grouped, [], Class.ClassWarrior)))[0]).toBe('Bloodthirst > my_group');
+		const grouped = [spell(named(73, 'Bloodthirst'), ActionCategory.ActionCategoryUnknown, { group: 'my_group' })];
+		expect(menu(await actionIdSets.castable_spells.getActionIDs(metadata([], grouped, [], [named(23881, 'Bloodthirst')])))[0]).toBe(
+			'Bloodthirst > my_group',
+		);
 	});
 
 	it('lists the shift spells in the sim’s form order, not by name', async () => {
@@ -169,21 +167,33 @@ describe('shift spells and manual groups', () => {
 
 	it('keeps a talent aura that is a shift aura at the top level, not under its tree', async () => {
 		const auras = [aura(named(15473, 'Shadowform'), ActionCategory.ActionCategoryTalent)];
-		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], [named(15473, 'Shadowform')], Class.ClassPriest)))).toEqual(['Shadowform']);
+		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], [named(15473, 'Shadowform')], [named(15473, 'Shadowform')])))).toEqual([
+			'Shadowform',
+		]);
 	});
 });
 
 describe('talent trees', () => {
 	// Sorted by name, as the metadata arrives.
 	const spells = [
-		spell(named(80, 'Blessing of Kings'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-		spell(named(81, 'Divine Favor'), ActionCategory.ActionCategoryCooldown, { fromTalent: true }),
+		spell(named(80, 'Blessing of Kings')),
+		spell(named(81, 'Divine Favor'), ActionCategory.ActionCategoryCooldown),
 		spell(named(82, 'Flash of Light')),
-		spell(named(83, 'Holy Shield'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-		spell(named(84, 'Holy Shock (Rank 1)', 1), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-		spell(named(85, 'Holy Shock (Rank 2)', 2), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-		spell(named(86, 'Repentance'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
-		spell(named(87, 'Seal of Command'), ActionCategory.ActionCategoryUnknown, { fromTalent: true }),
+		spell(named(83, 'Holy Shield')),
+		spell(named(84, 'Holy Shock (Rank 1)', 1)),
+		spell(named(85, 'Holy Shock (Rank 2)', 2)),
+		spell(named(86, 'Repentance')),
+		spell(named(87, 'Seal of Command')),
+	];
+	// The build's talents; Holy Might is not among them.
+	const held = [
+		named(20216, 'Divine Favor'),
+		named(20925, 'Holy Shield'),
+		named(1311606, 'Holy Shock'),
+		named(20127, 'Redoubt (Rank 5)', 5),
+		named(20066, 'Repentance'),
+		named(20375, 'Seal of Command'),
+		named(20049, 'Vengeance (Rank 5)', 5),
 	];
 	const auras = [
 		aura(named(90, 'Divine Favor'), ActionCategory.ActionCategoryCooldown),
@@ -195,7 +205,7 @@ describe('talent trees', () => {
 	];
 
 	it('files talent spells under their trees in the talent calculator’s order, ranks behind the highest', async () => {
-		const options = await actionIdSets.castable_spells.getActionIDs(metadata([], spells, [], Class.ClassPaladin));
+		const options = await actionIdSets.castable_spells.getActionIDs(metadata([], spells, [], held));
 		expect(menu(options).slice(0, 8)).toEqual([
 			'Holy Shock (Rank 1) > Holy > Holy Shock (Rank 2)',
 			'Holy Shock (Rank 2) > Holy',
@@ -209,7 +219,7 @@ describe('talent trees', () => {
 	});
 
 	it('files talent auras under their trees and keeps an unmatched one under Talents', async () => {
-		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], [], Class.ClassPaladin)))).toEqual([
+		expect(menu(await actionIdSets.auras.getActionIDs(metadata(auras, [], [], held)))).toEqual([
 			'Holy Shield > Protection',
 			'Redoubt > Protection',
 			'Vengeance > Retribution',
@@ -219,21 +229,22 @@ describe('talent trees', () => {
 		]);
 	});
 
-	it('files an entry by its talent link first, and by its name when the link names no talent of the class', async () => {
-		// 1310735 is Twist of Light in the Retribution tree.
-		const linkedAuras = [
-			aura(named(100, 'Echo of Command'), ActionCategory.ActionCategoryTalent, { talent: 1310735 }),
-			aura(named(101, 'Echo of Fury'), ActionCategory.ActionCategoryTalent, { talent: 999 }),
-			aura(named(102, 'Redoubt'), ActionCategory.ActionCategoryTalent, { talent: 999 }),
+	it('files only the entries named after a held talent', async () => {
+		const unheld = [
+			aura(named(100, 'Echo of Command'), ActionCategory.ActionCategoryTalent),
+			aura(named(102, 'Redoubt'), ActionCategory.ActionCategoryTalent),
 		];
-		const linkedSpells = [spell(named(103, 'Echo Strike'), ActionCategory.ActionCategoryUnknown, { fromTalent: true, talent: 1310735 })];
-		const options = await actionIdSets.auras.getActionIDs(metadata(linkedAuras, [], [], Class.ClassPaladin));
-		expect(menu(options)).toEqual(['Redoubt > Protection', 'Echo of Command > Retribution', 'Echo of Fury > talents']);
-		const spellOptions = await actionIdSets.castable_spells.getActionIDs(metadata([], linkedSpells, [], Class.ClassPaladin));
-		expect(menu(spellOptions)[0]).toBe('Echo Strike > Retribution');
+		const options = await actionIdSets.auras.getActionIDs(
+			metadata(unheld, [], [], [named(1310735, 'Twist of Light'), named(20127, 'Redoubt (Rank 5)', 5)]),
+		);
+		expect(menu(options)).toEqual(['Redoubt > Protection', 'Echo of Command > talents']);
+		const spellOptions = await actionIdSets.castable_spells.getActionIDs(
+			metadata([], [spell(named(103, 'Repentance'))], [], [named(20375, 'Seal of Command')]),
+		);
+		expect(menu(spellOptions)[0]).toBe('Repentance > spell');
 	});
 
-	it('keeps the filing of a unit with no class, such as a pet', async () => {
+	it('keeps the filing of a unit with no talents, such as a pet', async () => {
 		expect(menu(await actionIdSets.castable_spells.getActionIDs(metadata([], spells))).slice(0, 7)).toEqual([
 			'Blessing of Kings > spell',
 			'Flash of Light > spell',
@@ -250,6 +261,43 @@ describe('talent trees', () => {
 			'Redoubt > talents',
 			'Vengeance > talents',
 			'Righteous Fury',
+		]);
+	});
+});
+
+describe('talents', () => {
+	const talentNames: Record<number, string> = { 40: 'Anger Management', 41: 'Cruelty' };
+	const talentMetadata = (talents: Array<ActionId>) => ({ getTalents: () => talents }) as unknown as UnitMetadata;
+	afterEach(() => vi.restoreAllMocks());
+
+	it('offers each held talent at its rank, with the lower ranks behind it', async () => {
+		// The lower ranks are built and filled by the set itself; the tooltip lookup is not reachable here.
+		vi.spyOn(ActionId.prototype, 'fill').mockImplementation(function (this: ActionId) {
+			return Promise.resolve(named(this.spellId, `${talentNames[this.spellId]} (Rank ${this.rank})`, this.rank));
+		});
+
+		const options = await actionIdSets.talents.getActionIDs(talentMetadata([named(40, 'Anger Management (Rank 1)', 1), named(41, 'Cruelty (Rank 3)', 3)]));
+		expect(menu(options)).toEqual([
+			'Anger Management (Rank 1)',
+			'Cruelty (Rank 3)',
+			'Cruelty (Rank 1) > Cruelty (Rank 3)',
+			'Cruelty (Rank 2) > Cruelty (Rank 3)',
+		]);
+		expect(options.map(option => [option.value.spellId, option.value.rank])).toEqual([
+			[40, 1],
+			[41, 3],
+			[41, 1],
+			[41, 2],
+		]);
+	});
+
+	it('offers each held talent once and without a rank for Talent Rank', async () => {
+		const options = await actionIdSets.talent_ranks.getActionIDs(
+			talentMetadata([named(40, 'Anger Management (Rank 1)', 1), named(41, 'Cruelty (Rank 3)', 3)]),
+		);
+		expect(options.map(option => [option.value.spellId, option.value.rank])).toEqual([
+			[40, 0],
+			[41, 0],
 		]);
 	});
 });

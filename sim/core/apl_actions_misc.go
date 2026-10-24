@@ -320,6 +320,57 @@ func (action *APLActionMove) String() string {
 	return fmt.Sprintf("Move(%s)", action.moveRange)
 }
 
+type APLActionPetAttack struct {
+	defaultAPLActionImpl
+	character *Character
+}
+
+func (rot *APLRotation) newActionPetAttack(_ *proto.APLActionPetAttack) APLActionImpl {
+	character := rot.unit.Env.Raid.GetPlayerFromUnit(rot.unit).GetCharacter()
+	if len(character.Pets) == 0 {
+		rot.ValidationMessage(proto.LogLevel_Warning, "No pet to attack with.")
+		return nil
+	}
+	return &APLActionPetAttack{
+		character: character,
+	}
+}
+func (action *APLActionPetAttack) IsReady(_ *Simulation) bool {
+	return true
+}
+func (action *APLActionPetAttack) Execute(sim *Simulation) {
+	for _, pet := range action.character.Pets {
+		if pet.IsEnabled() {
+			pet.AttackBeforePull(sim)
+		}
+	}
+}
+func (action *APLActionPetAttack) String() string {
+	return "Pet Attack()"
+}
+
+type APLActionStartAttack struct {
+	defaultAPLActionImpl
+	aa *AutoAttacks
+}
+
+func (rot *APLRotation) newActionStartAttack(_ *proto.APLActionStartAttack) APLActionImpl {
+	if !rot.unit.AutoAttacks.AutoSwingMelee {
+		rot.ValidationMessage(proto.LogLevel_Warning, "No melee attack to start.")
+		return nil
+	}
+	return &APLActionStartAttack{aa: &rot.unit.AutoAttacks}
+}
+func (action *APLActionStartAttack) IsReady(_ *Simulation) bool {
+	return !action.aa.meleeAttackOn
+}
+func (action *APLActionStartAttack) Execute(sim *Simulation) {
+	action.aa.StartMeleeAttack(sim)
+}
+func (action *APLActionStartAttack) String() string {
+	return "Start Attack()"
+}
+
 type APLActionCustomRotation struct {
 	defaultAPLActionImpl
 	unit  *Unit

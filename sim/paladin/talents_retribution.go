@@ -145,6 +145,11 @@ func (paladin *Paladin) applyVindication() {
 //
 // Judgement fires no on-cast callbacks, so the trigger hears the judgement the seal unleashes: one
 // per Judgement, and it refunds whether or not that judgement lands.
+//
+// The refund is a share of the seal's base cost, and the seal's percent cost cut goes on top of it
+// instead of coming off: Benediction 5/5 makes a 90 mana seal cost 81 and refund 60% of 99, measured
+// in game at Benediction 0, 1, 3 and 5 with Sanctified Judgement 3/3. With Twist of Light as a second
+// cut the two are multiplied before the flip, which no log has checked.
 func (paladin *Paladin) applySanctifiedJudgement() {
 	if paladin.Talents.SanctifiedJudgement == 0 {
 		return
@@ -162,7 +167,8 @@ func (paladin *Paladin) applySanctifiedJudgement() {
 		TriggerImmediately: true,
 		Handler: func(sim *core.Simulation, _ *core.Spell, _ *core.SpellResult) {
 			if seal := paladin.activeSeal(); seal != nil {
-				paladin.AddMana(sim, seal.spell.Cost.GetCurrentCost()*refund, manaMetrics)
+				cost := seal.spell.Cost
+				paladin.AddMana(sim, float64(cost.BaseCost)*(2-cost.PercentModifier)*refund, manaMetrics)
 			}
 		},
 	})
@@ -339,8 +345,7 @@ func (paladin *Paladin) applyTwistOfLight() {
 		return
 	}
 
-	talent := spellData.TwistOfLight.Rank(1)
-	spelldata.ParseStatic(&paladin.Character, talent)
+	spelldata.ParseStatic(&paladin.Character, spellData.TwistOfLight.Rank(1))
 
 	paladin.echoes = map[int32]*sealEcho{}
 	for _, id := range []int32{echoOfCommandID, echoOfFuryID, echoOfRighteousnessID, echoOfJusticeID} {
@@ -349,7 +354,6 @@ func (paladin *Paladin) applyTwistOfLight() {
 			Label:    fmt.Sprintf("Echo (%d)%s", id, paladin.Label),
 			ActionID: core.ActionID{SpellID: id},
 			Duration: core.NeverExpires,
-			Talent:   talent.ID,
 		})
 		echo.aura.NewExclusiveEffect(EchoCategory, true, core.ExclusiveEffect{})
 		echo.aura.AttachProcTrigger(core.ProcTrigger{

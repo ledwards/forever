@@ -4,7 +4,9 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wowsims/forever/sim/common"
 	_ "github.com/wowsims/forever/sim/common" // imported to get item effects included.
@@ -42,11 +44,12 @@ func TestHunter(t *testing.T) {
 			},
 			Consumables:      DefaultConsumables,
 			SpecOptions:      core.SpecOptionsCombo{Label: "Default", SpecOptions: DefaultOptions},
-			StartingDistance: 11,
+			StartingDistance: 12,
 			Profession1:      proto.Profession_Engineering,
 			Profession2:      proto.Profession_Blacksmithing,
 
-			Rotation: core.GetAplRotation("../../ui/specs/hunter/dps/apls", "default"),
+			Rotation:       core.GetAplRotation("../../ui/specs/hunter/dps/apls", "default"),
+			OtherRotations: []core.RotationCombo{core.GetAplRotation("../../ui/specs/hunter/dps/apls", "clean_weave")},
 
 			ItemFilter: core.ItemFilter{
 				ArmorType: proto.ArmorType_ArmorTypeMail,
@@ -105,7 +108,7 @@ func TestHunterPets(t *testing.T) {
 			Consumables:      DefaultConsumables,
 			SpecOptions:      families[0],
 			OtherSpecOptions: families[1:],
-			StartingDistance: 11,
+			StartingDistance: 12,
 			Rotation:         turretRotation,
 			ItemFilter:       core.ItemFilter{ArmorType: proto.ArmorType_ArmorTypeMail},
 		},
@@ -297,6 +300,19 @@ func TestTheHuntersOwnMarkCarriesTheMarkTag(t *testing.T) {
 	}
 }
 
+// A pet takes the hunter's ranged hit whole as melee hit, and 17/8 of it as spell hit.
+func TestPetHitIsTheHuntersRangedHit(t *testing.T) {
+	_, pet, _ := newPetSim(proto.HunterOptions_Cat, nil)
+
+	inherited := pet.hunterOwner.makeStatInheritance()(stats.Stats{stats.PhysicalHitPercent: 3, stats.RangedHitPercent: 1})
+	if got := inherited[stats.PhysicalHitPercent]; got != 4 {
+		t.Errorf("pet melee hit %.4f%% from 4%% ranged hit, want 4%%", got)
+	}
+	if got := inherited[stats.SpellHitPercent]; got != 8.5 {
+		t.Errorf("pet spell hit %.4f%% from 4%% ranged hit, want 8.5%%", got)
+	}
+}
+
 // Lacerating Strikes refreshes the way Deep Wounds does: a bite while the bleed is up adds the unticked
 // damage to the new bleed and keeps the first bite's tick timer.
 func TestLaceratingStrikesRollsItsUntickedDamageIntoTheNextBite(t *testing.T) {
@@ -356,6 +372,250 @@ func TestLaceratingStrikesRollsItsUntickedDamageIntoTheNextBite(t *testing.T) {
 	}
 	if got := bleed.NextTickAt(); got != nextTick {
 		t.Errorf("a second bite moved the next tick to %v, want it kept at %v", got, nextTick)
+	}
+}
+
+// Strider Kick's 30% speed lasts the row's 3 seconds, and a walk that outlasts it ends where it was
+// going: a walk out to range started 2.5 seconds after the kick runs its first half second at 130%.
+func TestStriderKickSpeedRunsOutMidWalk(t *testing.T) {
+	player := &proto.Player{
+		Name:               "Kick",
+		Race:               proto.Race_RaceOrc,
+		Class:              proto.Class_ClassHunter,
+		Equipment:          &proto.EquipmentSpec{},
+		TalentsString:      DefaultSVTalents,
+		Spec:               DefaultOptions,
+		Rotation:           &proto.APLRotation{},
+		DistanceFromTarget: core.MaxMeleeRange,
+	}
+	sim := core.NewSim(&proto.RaidSimRequest{
+		Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+		Encounter:  core.MakeSingleTargetEncounter(0),
+		SimOptions: &proto.SimOptions{RandomSeed: 1},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+	kick := hunter.GetSpell(core.ActionID{SpellID: striderKickRank.ID})
+	if kick == nil {
+		t.Fatal("the SV hunter has no Strider Kick")
+	}
+
+	stepTo := func(at time.Duration) {
+		for sim.CurrentTime < at {
+			sim.AddPendingAction(&core.PendingAction{NextActionAt: at, OnAction: func(*core.Simulation) {}})
+			sim.Step()
+		}
+	}
+	kick.SkipCastAndApplyEffects(sim, sim.Encounter.AllTargetUnits[0])
+	if got, want := hunter.GetMovementSpeed(), 7*(1+striderKickRank.EffectN(3).Percent()); math.Abs(got-want) > 1e-9 {
+		t.Fatalf("after Strider Kick the hunter runs %v yd/s, want %v", got, want)
+	}
+
+	start := sim.CurrentTime + 2500*time.Millisecond
+	stepTo(start)
+	const ranged = 15.5
+	hunter.MoveTo(ranged, sim)
+	for i := 0; hunter.Moving && i < 1000; i++ {
+		sim.Step()
+	}
+	fast := 0.5 * 7 * (1 + striderKickRank.EffectN(3).Percent())
+	want := start + 500*time.Millisecond + time.Duration((ranged-core.MaxMeleeRange-fast)/7*float64(time.Second))
+	if math.Abs(hunter.DistanceFromTarget-ranged) > 1e-6 {
+		t.Errorf("the walk out ended at %v yd, want %v", hunter.DistanceFromTarget, ranged)
+	}
+	if got := sim.CurrentTime; (got - want).Abs() > 20*time.Millisecond {
+		t.Errorf("the walk out ended at %v, want about %v", got, want)
+	}
+}
+
+// Enchant Boots - Minor Speed, the boots enchant Forever offers, runs the hunter 8% faster.
+func TestMinorSpeedBootsRunFaster(t *testing.T) {
+	gear := core.GetGearSet("../../ui/specs/hunter/dps/gear_sets", "p1").GearSet
+	gear = googleProto.Clone(gear).(*proto.EquipmentSpec)
+	gear.Items[proto.ItemSlot_ItemSlotFeet].Enchant = 911
+	player := &proto.Player{
+		Name:          "Boots",
+		Race:          proto.Race_RaceOrc,
+		Class:         proto.Class_ClassHunter,
+		Equipment:     gear,
+		TalentsString: DefaultMMTalents,
+		Spec:          DefaultOptions,
+		Rotation:      &proto.APLRotation{},
+	}
+	sim := core.NewSim(&proto.RaidSimRequest{
+		Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+		Encounter:  core.MakeSingleTargetEncounter(0),
+		SimOptions: &proto.SimOptions{RandomSeed: 1},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+	if got := hunter.GetMovementSpeed(); math.Abs(got-7*1.08) > 1e-9 {
+		t.Errorf("with Minor Speed on the boots the hunter runs %v yd/s, want %v", got, 7*1.08)
+	}
+}
+
+// Survivalist's Discipline shortens the traps' shared cooldown by 20% a rank: a placed Explosive Trap
+// holds Immolation Trap back 30, 24 or 18 seconds.
+func TestSurvivalistsDisciplineShortensTheTrapCooldown(t *testing.T) {
+	for points, want := range []time.Duration{30 * time.Second, 24 * time.Second, 18 * time.Second} {
+		player := &proto.Player{
+			Name:          "Traps",
+			Race:          proto.Race_RaceOrc,
+			Class:         proto.Class_ClassHunter,
+			Equipment:     &proto.EquipmentSpec{},
+			TalentsString: "--" + strings.Repeat("0", 14) + strconv.Itoa(points),
+			Spec:          DefaultOptions,
+			Rotation:      &proto.APLRotation{},
+		}
+		sim := core.NewSim(&proto.RaidSimRequest{
+			Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+			Encounter:  core.MakeSingleTargetEncounter(0),
+			SimOptions: &proto.SimOptions{RandomSeed: 1},
+		}, simsignals.CreateSignals())
+		sim.Reset()
+		hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+		target := sim.Encounter.AllTargetUnits[0]
+
+		explosive := hunter.GetSpell(core.ActionID{SpellID: explosiveTrapRank.ID})
+		immolation := hunter.GetSpell(core.ActionID{SpellID: immolationTrapRank.ID})
+		if explosive == nil || immolation == nil {
+			t.Fatal("the hunter has no Explosive Trap or no Immolation Trap")
+		}
+		if !explosive.Cast(sim, target) {
+			t.Fatalf("with %d points, Explosive Trap could not be placed", points)
+		}
+		if got := immolation.ReadyAt() - sim.CurrentTime; got != want {
+			t.Errorf("with %d points, a placed Explosive Trap held Immolation Trap back %v, want %v", points, got, want)
+		}
+	}
+}
+
+// An Auto Shot that comes due while the hunter moves winds up a reaction time after the move ends,
+// as the player starts it again by hand, not at the hidden retry timer's next check.
+func TestAutoShotWindsUpWhenTheMoveEnds(t *testing.T) {
+	player := &proto.Player{
+		Name:               "Shot",
+		Race:               proto.Race_RaceOrc,
+		Class:              proto.Class_ClassHunter,
+		Equipment:          core.GetGearSet("../../ui/specs/hunter/dps/gear_sets", "p1").GearSet,
+		TalentsString:      DefaultMMTalents,
+		Spec:               DefaultOptions,
+		Rotation:           &proto.APLRotation{},
+		DistanceFromTarget: 20,
+		ReactionTimeMs:     150,
+	}
+	sim := core.NewSim(&proto.RaidSimRequest{
+		Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+		Encounter:  core.MakeSingleTargetEncounter(0),
+		SimOptions: &proto.SimOptions{RandomSeed: 1},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	sim.PrePull()
+	hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+	for i := 0; sim.CurrentTime < time.Second && i < 10000; i++ {
+		sim.Step()
+	}
+
+	due := hunter.AutoAttacks.NextRangedAttackAt()
+	moveEnd := due + 300*time.Millisecond
+	hunter.MoveDuration(moveEnd-sim.CurrentTime, sim)
+	recast := moveEnd + hunter.ReactionTime
+	for i := 0; sim.CurrentTime <= recast && i < 10000; i++ {
+		sim.Step()
+	}
+	if got, want := hunter.AutoAttacks.NextRangedAttackAt(), recast+core.RangedSwingWindup; got != want {
+		t.Errorf("a shot due at %v during a move that ended at %v fires at %v, want %v", due, moveEnd, got, want)
+	}
+}
+
+// A hunter walking out of the deadzone who stops right on the minimum range is back in range only as
+// the walk ends; a shot that came due on the way still waits a reaction time before it winds up.
+func TestAutoShotWaitsAReactionWhenTheWalkEndsOnTheMinimumRange(t *testing.T) {
+	player := &proto.Player{
+		Name:               "Line",
+		Race:               proto.Race_RaceOrc,
+		Class:              proto.Class_ClassHunter,
+		Equipment:          core.GetGearSet("../../ui/specs/hunter/dps/gear_sets", "p1").GearSet,
+		TalentsString:      DefaultMMTalents,
+		Spec:               DefaultOptions,
+		Rotation:           &proto.APLRotation{},
+		DistanceFromTarget: 20,
+		ReactionTimeMs:     150,
+	}
+	sim := core.NewSim(&proto.RaidSimRequest{
+		Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+		Encounter:  core.MakeSingleTargetEncounter(0),
+		SimOptions: &proto.SimOptions{RandomSeed: 1},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	sim.PrePull()
+	hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+	for i := 0; sim.CurrentTime < time.Second && i < 10000; i++ {
+		sim.Step()
+	}
+
+	// Into melee before the next shot, then out to the minimum range, arriving after it came due.
+	hunter.MoveTo(core.MaxMeleeRange, sim)
+	for i := 0; hunter.Moving && i < 10000; i++ {
+		sim.Step()
+	}
+	due := hunter.AutoAttacks.NextRangedAttackAt()
+	hunter.MoveTo(core.MinRangedRange, sim)
+	walkEnd := sim.CurrentTime + time.Duration((core.MinRangedRange-core.MaxMeleeRange)/hunter.GetMovementSpeed()*float64(time.Second))
+	if walkEnd <= due {
+		t.Fatalf("the walk out ends at %v, before the shot comes due at %v", walkEnd, due)
+	}
+	recast := walkEnd + hunter.ReactionTime
+	for i := 0; sim.CurrentTime <= recast && i < 10000; i++ {
+		sim.Step()
+	}
+	if got, want := hunter.AutoAttacks.NextRangedAttackAt(), recast+core.RangedSwingWindup; (got - want).Abs() > time.Millisecond {
+		t.Errorf("a walk out ending on the minimum range at %v fires its shot at %v, want %v", walkEnd, got, want)
+	}
+}
+
+// Minor Speed and Strider Kick are both A_MOD_INCREASE_SPEED, of which only the highest counts: with
+// both the hunter runs at Strider Kick's 30%, and back at the boots' 8% once the kick runs out.
+func TestMinorSpeedDoesNotStackWithStriderKick(t *testing.T) {
+	gear := googleProto.Clone(core.GetGearSet("../../ui/specs/hunter/dps/gear_sets", "p1").GearSet).(*proto.EquipmentSpec)
+	gear.Items[proto.ItemSlot_ItemSlotFeet].Enchant = 911
+	player := &proto.Player{
+		Name:               "Boots and Kick",
+		Race:               proto.Race_RaceOrc,
+		Class:              proto.Class_ClassHunter,
+		Equipment:          gear,
+		TalentsString:      DefaultSVTalents,
+		Spec:               DefaultOptions,
+		Rotation:           &proto.APLRotation{},
+		DistanceFromTarget: core.MaxMeleeRange,
+	}
+	sim := core.NewSim(&proto.RaidSimRequest{
+		Raid:       core.SinglePlayerRaidProto(player, &proto.PartyBuffs{}, &proto.RaidBuffs{}, &proto.Debuffs{}),
+		Encounter:  core.MakeSingleTargetEncounter(0),
+		SimOptions: &proto.SimOptions{RandomSeed: 1},
+	}, simsignals.CreateSignals())
+	sim.Reset()
+	sim.PrePull()
+	hunter := sim.Raid.Parties[0].Players[0].(*Hunter)
+	for i := 0; sim.CurrentTime < 0 && i < 10000; i++ {
+		sim.Step()
+	}
+
+	if got := hunter.GetMovementSpeed(); math.Abs(got-7*1.08) > 1e-9 {
+		t.Fatalf("with the boots alone the hunter runs %v yd/s, want %v", got, 7*1.08)
+	}
+	kick := hunter.GetSpell(core.ActionID{SpellID: striderKickRank.ID})
+	kick.SkipCastAndApplyEffects(sim, sim.Encounter.AllTargetUnits[0])
+	if got, want := hunter.GetMovementSpeed(), 7*(1+striderKickRank.EffectN(3).Percent()); math.Abs(got-want) > 1e-9 {
+		t.Errorf("with the boots and Strider Kick the hunter runs %v yd/s, want Strider Kick's %v alone", got, want)
+	}
+	end := sim.CurrentTime + striderKickRank.Duration() + time.Millisecond
+	for i := 0; sim.CurrentTime < end && i < 10000; i++ {
+		sim.AddPendingAction(&core.PendingAction{NextActionAt: end, OnAction: func(*core.Simulation) {}})
+		sim.Step()
+	}
+	if got := hunter.GetMovementSpeed(); math.Abs(got-7*1.08) > 1e-9 {
+		t.Errorf("after Strider Kick runs out the hunter runs %v yd/s, want the boots' %v", got, 7*1.08)
 	}
 }
 

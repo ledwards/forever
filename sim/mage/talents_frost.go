@@ -18,7 +18,6 @@ func (mage *Mage) registerFrostTalents() {
 	mage.registerFrostbite()
 
 	// Tier 3
-	mage.registerPiercingIce()
 	mage.registerFrostChanneling()
 	mage.registerIceLance()
 	mage.registerImprovedBlizzard()
@@ -48,11 +47,12 @@ func (mage *Mage) registerColdSnapTalent() {
 	mage.registerColdSnapSpell()
 }
 
-// "Increases the Armor and resistance given by your Frost Armor and Ice Armor spells by 30%. In
-// addition, gives your Frost Ward a 20% chance to reflect Frost spells and effects while active."
+// "Increases the Armor and resistances granted by your Frost Armor and Ice Armor spells by $s1%, gives
+// your Frost Ward a $s2% chance to negate the warded damage spell, and increases the amount absorbed
+// by your Ice Barrier and Frost Ward by $s3%."
 //
-// The armor half is applied in armors.go. The reflect needs an enemy casting Frost at the mage, so
-// it is not modelled.
+// The armor is applied in armors.go and the absorb in ice_barrier.go and defensives.go. The negate
+// needs an enemy casting Frost at the mage, so it is not modelled.
 func (mage *Mage) registerFrostWarding() {
 	if mage.Talents.FrostWarding == 0 {
 		return
@@ -68,7 +68,7 @@ func (mage *Mage) registerImprovedFrostbolt() {
 	spelldata.ParseStatic(&mage.Character, spellData.ImprovedFrostbolt.Rank(mage.Talents.ImprovedFrostbolt))
 }
 
-// "Improves your chance to hit with Frost and Fire spells by 5%." The row's mask names the Fire and
+// "Improves your chance to hit with Frost and Fire spells by $s1%." The row's mask names the Fire and
 // Frost spells, Frostfire Bolt included.
 func (mage *Mage) registerElementalPrecision() {
 	if mage.Talents.ElementalPrecision == 0 {
@@ -115,14 +115,6 @@ func (mage *Mage) registerFrostbite() {
 	if mage.Talents.Frostbite == 0 {
 		return
 	}
-}
-
-func (mage *Mage) registerPiercingIce() {
-	if mage.Talents.PiercingIce == 0 {
-		return
-	}
-
-	spelldata.ParseStatic(&mage.Character, spellData.PiercingIce.Rank(mage.Talents.PiercingIce))
 }
 
 // Reduces the mana cost of your Frost spells by 5/10/15% and their threat by 10/20/30%.
@@ -222,11 +214,14 @@ func (mage *Mage) registerFingersOfFrost() {
 
 	// A cast that granted the charges from inside its own effects, which spends none of them.
 	var grantedBy *core.Spell
+	// Counts the grants, so a spend can tell whether charges were granted after it was cast.
+	var grants int
 
 	// Every damage spell the rotation casts spends a charge, except a channel and the cast that
-	// granted them: in the logs, Blizzard casts made with charges up spent none. The charge goes
-	// after the cast's effects, so the spell that spends the last one still reads the target as
-	// Frozen.
+	// granted them: in the logs, Blizzard casts made with charges up spent none. The charge goes a
+	// spell batch after the cast, so a spell queued in the same batch still reads the target as
+	// Frozen and spends the same charge. A grant inside that batch leaves the charges full: the
+	// spend came before it.
 	config.OnCastComplete = func(aura *core.Aura, sim *core.Simulation, spell *core.Spell) {
 		if spell == grantedBy {
 			grantedBy = nil
@@ -234,7 +229,16 @@ func (mage *Mage) registerFingersOfFrost() {
 		}
 		if spell.Flags.Matches(core.SpellFlagAPL) && !spell.Flags.Matches(core.SpellFlagChanneled) &&
 			spell.ProcMask.Matches(core.ProcMaskSpellDamage) {
-			aura.RemoveStack(sim)
+			grantsAtCast := grants
+			pa := sim.GetConsumedPendingActionFromPool()
+			pa.NextActionAt = sim.CurrentTime + core.SpellBatchWindow
+			pa.Priority = core.ActionPriorityDOT
+			pa.OnAction = func(sim *core.Simulation) {
+				if grants == grantsAtCast {
+					aura.RemoveStack(sim)
+				}
+			}
+			sim.AddPendingAction(pa)
 		}
 	}
 	// Arcane Missiles' channel spends no charge; each missile that lands spends one, and a miss
@@ -256,6 +260,7 @@ func (mage *Mage) registerFingersOfFrost() {
 			}
 			mage.FingersOfFrostAura.Activate(sim)
 			mage.FingersOfFrostAura.SetStacks(sim, charges)
+			grants++
 		}
 	}
 

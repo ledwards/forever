@@ -100,6 +100,13 @@ export const AdmiralsHat = makeBooleanPartyBuffInput({
 	label: "Admiral's Hat",
 });
 
+export const DarkInspiration = makeMultistatePartyBuffInput({
+	actionId: ActionId.fromSpellId(1326168),
+	numStates: 6,
+	fieldName: 'darkInspiration',
+	label: 'Dark Inspiration',
+});
+
 export const ArcaneBrilliance = makeBooleanRaidBuffInput({
 	actionId: ActionId.fromSpellId(23028),
 	fieldName: 'arcaneBrilliance',
@@ -567,6 +574,11 @@ export const GENERATED_PARTY_BUFFS_CONFIG: RenderableStatOptions[] = [
 	{
 		config: AdmiralsHat,
 		stats: [Stat.StatStamina],
+	},
+	{
+		config: DarkInspiration,
+		stats: [Stat.StatSpirit],
+		ownerClass: Class.ClassPriest,
 	},
 ];
 

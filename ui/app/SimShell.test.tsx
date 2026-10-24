@@ -26,7 +26,7 @@ const renderShell = (host: SimHostObject<any> | null) =>
 			host={host}
 			sim={{} as never}
 			className="warrior"
-			spec={{ launch: 0 } as never}
+			spec={{ launch: 0, simLink: '/forever/warrior/dps/' } as never}
 			knownIssues={[]}
 			onOpenSettings={() => {}}
 		/>,

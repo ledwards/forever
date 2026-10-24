@@ -1,5 +1,6 @@
 import { LaunchStatus, Phase } from '@sim/constants/other';
 import { createSimStore } from '@sim/state/sim_store';
+import { memoryEnv } from '@testing/sim/memory_env';
 import { act, render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { StrictMode } from 'react';
@@ -61,6 +62,8 @@ vi.mock('./SimTabsSection', async () => {
 });
 // Every import and export dialog reads the item database.
 vi.mock('./SimImportExport', () => ({ SimImportExport: () => <div className="import-export-menus" /> }));
+// The tour reads the results panel, which the stub host does not have.
+vi.mock('./SimOnboarding', () => ({ SimOnboarding: () => null }));
 // Both reach through the host for the run facade; SidebarActions.test.tsx asserts the sidebar's gate.
 vi.mock('@features/results/components/SimulateAction', () => ({ SimulateAction: () => <button className="dps-action" /> }));
 vi.mock('@features/stat-weights/components/StatWeightsAction', () => ({ StatWeightsAction: () => <button className="ep-weights-action" /> }));
@@ -88,6 +91,7 @@ const { SimApp } = await import('./SimApp');
 // spec's shape decides the `sim-type--*` class, so both have to be genuine rather than empty casts.
 const sim = {
 	store: createSimStore(),
+	env: memoryEnv(),
 	// The tab bodies gate their own content on this.
 	waitForInit: () => Promise.resolve(),
 	getShowDamageMetrics: () => true,
@@ -105,6 +109,7 @@ const spec = {
 	isMeleeDpsSpec: true,
 	isRangedDpsSpec: false,
 	launch: { phase: Phase.Phase1, status: LaunchStatus.Launched },
+	simLink: '/forever/warrior/dps/',
 };
 const player = { sim, getPlayerSpec: () => spec } as never;
 const def = { className: 'arms-warrior-sim-ui', encounterPicker: { showExecuteProportion: true } } as never;

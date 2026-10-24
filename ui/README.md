@@ -25,8 +25,8 @@ ui/
                      components/ (React, one folder per component) + hooks/ + utils/ (feature
                      helpers that are neither a component nor DOM-free). The capabilities are
                      apl, bulk, character-stats, enchant-presets, encounter, gear, import-export,
-                     item-swap, reforge, results, settings, stat-filters, stat-sweep, stat-weights,
-                     talents.
+                     item-swap, onboarding, reforge, results, settings, stat-filters, stat-sweep,
+                     stat-weights, talents.
                      alias @features
   features/hooks/    React hooks several features share and none owns (useSavedPanel,
                      useActivateTab), one per file, beside the capability folders
@@ -51,7 +51,8 @@ ui/
                      the top level rather than under app/. alias @i18n
   specs/<class>/<spec>/   spec data, presets. alias @specs. No html on disk: the one page at
                      ui/index_template.html is served (dev) and emitted (build) at every
-                     /forever/<class>/<spec>/ by tools/vite/spec_pages.mts
+                     /forever/<class>/<spec>/ by tools/vite/spec_pages.mts, which writes
+                     each spec's title, description and URL into its head
   styles/            main.css (the stylesheet body), style.css (the production entry: main.css
                      plus the @source not lines that keep stories, tests, testing/storybook,
                      design-system and Markdown out of it), theme/ (tokens + the 18 spec themes,

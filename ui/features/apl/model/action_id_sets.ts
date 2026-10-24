@@ -21,9 +21,12 @@ export type ACTION_ID_SET =
 	| 'non_instant_spells'
 	| 'friendly_spells'
 	| 'expected_dot_spells'
+	| 'expected_damage_spells'
 	| 'spells_with_travelTime'
 	| 'potions'
-	| 'conjured_items';
+	| 'conjured_items'
+	| 'talents'
+	| 'talent_ranks';
 
 /** The ranked entries that share `actionId`'s base name and tag: the ranks of its spell. */
 const ranksOf = <T extends AuraStats | SpellStats>(actionId: ActionId, entries: Array<T>): Array<T> =>
@@ -97,7 +100,7 @@ const categorise = <T extends AuraStats | SpellStats>(
 	toOption: (entry: T, submenu: Array<string | ActionId>) => ActionIdOption,
 	allEntries: Array<T> = entries,
 ) => {
-	const talentTree = talentTrees(metadata.getClass());
+	const talentTree = talentTrees(metadata.getTalents());
 	// Every rank of a shift spell goes with it, so an entry matches by base name and tag.
 	const shiftKeys = metadata.getShiftSpells().map(rankKey);
 	const shiftPlace = (entry: T) => (entry.id.itemId ? -1 : shiftKeys.indexOf(rankKey(entry.id)));
@@ -114,15 +117,8 @@ const categorise = <T extends AuraStats | SpellStats>(
 	const isShift = (entry: T) => shiftPlace(entry) >= 0;
 	const groupOf = (entry: T) => highest.get(entry)!.data.group;
 	const isCategorised = (entry: T) => CATEGORY_SUBMENUS.some(([category]) => entry.data.category === category);
-	// The sim marks a talent's spells; a talent's auras carry the Talent category.
-	const fromTalent = (entry: T) => {
-		const data = highest.get(entry)!.data;
-		return data.category === ActionCategory.ActionCategoryTalent || ('fromTalent' in data && data.fromTalent);
-	};
 	const treeOf = (entry: T) =>
-		fromTalent(entry) && (entry.data.category === ActionCategory.ActionCategoryTalent || !isCategorised(entry))
-			? talentTree(entry.id.baseName, highest.get(entry)!.data.talent)
-			: undefined;
+		entry.data.category === ActionCategory.ActionCategoryTalent || !isCategorised(entry) ? talentTree(entry.id.baseName) : undefined;
 
 	const unshifted = entries.filter(entry => !isShift(entry));
 	const ungrouped = unshifted.filter(entry => !groupOf(entry));
@@ -344,6 +340,23 @@ export const actionIdSets: Record<
 			});
 		},
 	},
+	expected_damage_spells: {
+		defaultLabel: i18n.t('rotation_tab.apl.helpers.action_id_sets.expected_damage_spells'),
+		getActionIDs: async metadata => {
+			const spells = metadata
+				.getSpells()
+				.filter(spell => spell.data.isCastable && (spell.data.hasExpectedTick || spell.data.hasExpectedInitial))
+				// filter duplicate dot entries from RelatedDotSpell
+				.filter((value, index, self) => self.findIndex(v => v.id.anyId() === value.id.anyId()) === index);
+
+			return spells.map(actionId => {
+				return {
+					value: actionId.id,
+					submenu: createSpellSubmenu(actionId.id, spells),
+				};
+			});
+		},
+	},
 	shield_spells: {
 		defaultLabel: i18n.t('rotation_tab.apl.helpers.action_id_sets.shield_spells'),
 		getActionIDs: async metadata => {
@@ -355,6 +368,25 @@ export const actionIdSets: Record<
 				};
 			});
 		},
+	},
+	// Each talent at the rank the player holds, with its lower ranks behind it. Every rank of a talent
+	// shares one spell id and the metadata carries only the held rank, so the lower ranks are built here.
+	talents: {
+		defaultLabel: i18n.t('rotation_tab.apl.helpers.action_id_sets.talents'),
+		getActionIDs: async metadata => {
+			const perTalent = await Promise.all(
+				metadata.getTalents().map(async held => {
+					const lowerRanks = await Promise.all(Array.from({ length: held.rank - 1 }, (_, i) => ActionId.fromSpellId(held.spellId, i + 1).fill()));
+					return [{ value: held }, ...lowerRanks.map(value => ({ value, submenu: [held] }))];
+				}),
+			);
+			return perTalent.flat();
+		},
+	},
+	// Each talent the player holds, once and without a rank, for the values that read the rank.
+	talent_ranks: {
+		defaultLabel: i18n.t('rotation_tab.apl.helpers.action_id_sets.talent_ranks'),
+		getActionIDs: async metadata => metadata.getTalents().map(held => ({ value: held.withoutRank() })),
 	},
 	spells_with_travelTime: {
 		defaultLabel: i18n.t('rotation_tab.apl.helpers.action_id_sets.spells_with_travelTime'),

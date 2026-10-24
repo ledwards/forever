@@ -234,7 +234,12 @@ func (swap *ItemSwap) RegisterActive(itemID int32) {
 			return
 		}
 
+		// The spell's ActionID is the item. The aura it applies is keyed by its spell, so the item
+		// id lookup misses it (Manual Crowd Pummeler's haste, spell 13494).
 		aura := character.GetAuraByID(spell.ActionID)
+		if aura == nil {
+			aura = spell.RelatedSelfBuff
+		}
 		if aura.IsActive() {
 			aura.Deactivate(sim)
 		}

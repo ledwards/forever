@@ -1,6 +1,7 @@
 package mage
 
 import (
+	"github.com/wowsims/forever/sim/common/shared"
 	"github.com/wowsims/forever/sim/core"
 	"github.com/wowsims/forever/sim/core/spelldata"
 	"github.com/wowsims/forever/sim/core/stats"
@@ -16,18 +17,18 @@ var (
 	frostfireNotThereBuff  = spelldata.MustFind(28762) // 8pc: Not There, the threat buff
 )
 
+// Tier 3
+//
 // (4) Set: Adaptive Warding raises a resistance when Mage Armor is struck by a spell, which a boss
 // fight does not test.
 var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
-	Name: "Frostfire Regalia",
-	ID:   526,
+	Name:  "Frostfire Regalia",
+	ID:    526,
+	Slots: shared.TierThreeSlots,
 	Bonuses: map[int32]core.ApplySetBonus{
-		2: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
-			spelldata.ParseEffects(&mage.Character, setBonusAura, frostfireEvocation)
-		},
+		2: shared.ParsedSetBonus(frostfireEvocation),
 		6: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
+			character := agent.GetCharacter()
 
 			// A_MOD_DAMAGE_TAKEN rather than a from-caster aura: every caster's spells take it. "Up to
 			// $s1" is spell damage against the target, which each spell takes at its own coefficient,
@@ -40,9 +41,9 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 					takenSchools = append(takenSchools, school.SchoolIndex())
 				}
 			}
-			debuffs := mage.NewEnemyAuraArray(func(target *core.Unit) *core.Aura {
+			debuffs := character.NewEnemyAuraArray(func(target *core.Unit) *core.Aura {
 				aura := target.RegisterAura(spelldata.AuraConfig(frostfireVulnDebuff,
-					spelldata.Label(frostfireVulnDebuff.Name+mage.Label)))
+					spelldata.Label(frostfireVulnDebuff.Name+character.Label)))
 				aura.ApplyOnGain(func(_ *core.Aura, _ *core.Simulation) {
 					for _, i := range takenSchools {
 						target.PseudoStats.SchoolBonusSpellDamage[i] += taken.BaseValue()
@@ -53,11 +54,11 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 					}
 				})
 
-				consume := spelldata.ProcTrigger(&mage.Character, frostfireVulnDebuff,
+				consume := spelldata.ProcTrigger(character, frostfireVulnDebuff,
 					func(sim *core.Simulation, _ *core.Spell, _ *core.SpellResult) {
 						aura.Deactivate(sim)
 					})
-				consume.Name = "Elemental Vulnerability - Consume" + mage.Label
+				consume.Name = "Elemental Vulnerability - Consume" + character.Label
 				consume.TriggerImmediately = true
 				return aura.AttachProcTrigger(consume)
 			})
@@ -65,7 +66,7 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 			// The rate is the proc chance column. PROC_FLAG_DEAL_HARMFUL_SPELL decodes to the cast,
 			// which names no target; the debuff goes on the one a damage spell landed on, the
 			// tooltip's "your damage spells".
-			trigger := spelldata.ProcTrigger(&mage.Character, frostfireVulnerability,
+			trigger := spelldata.ProcTrigger(character, frostfireVulnerability,
 				func(sim *core.Simulation, _ *core.Spell, result *core.SpellResult) {
 					debuffs.Get(result.Target).Activate(sim)
 				})
@@ -78,12 +79,12 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 			setBonusAura.AttachProcTrigger(trigger)
 		},
 		8: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
+			character := agent.GetCharacter()
 
 			// A_MOD_THREAT -100% on the schools the misc value masks is a multiplier of 0, which the
 			// parse cannot divide back out, so the buff holds the multipliers it zeroes and puts
 			// them back.
-			buff := mage.RegisterAura(spelldata.AuraConfig(frostfireNotThereBuff))
+			buff := character.RegisterAura(spelldata.AuraConfig(frostfireNotThereBuff))
 			threatEffect := frostfireNotThereBuff.EffectN(1)
 			var schools []stats.SchoolIndex
 			for school := core.SpellSchoolHoly; school <= core.SpellSchoolArcane; school <<= 1 {
@@ -94,19 +95,19 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 			var held [stats.SchoolLen]float64
 			buff.ApplyOnGain(func(_ *core.Aura, _ *core.Simulation) {
 				for _, i := range schools {
-					held[i] = mage.PseudoStats.SchoolThreatMultiplier[i]
-					mage.PseudoStats.SchoolThreatMultiplier[i] *= core.MultiplierFromPercent(threatEffect.BaseValue())
+					held[i] = character.PseudoStats.SchoolThreatMultiplier[i]
+					character.PseudoStats.SchoolThreatMultiplier[i] *= core.MultiplierFromPercent(threatEffect.BaseValue())
 				}
 			}).ApplyOnExpire(func(_ *core.Aura, _ *core.Simulation) {
 				for _, i := range schools {
-					mage.PseudoStats.SchoolThreatMultiplier[i] = held[i]
+					character.PseudoStats.SchoolThreatMultiplier[i] = held[i]
 				}
 			})
 
 			// The row spends its one charge on the cast, but the sim reckons threat when a hit
 			// deals, which a spell in flight does after its cast completes: the buff goes on the
 			// next damage spell's hit.
-			consume := spelldata.ProcTrigger(&mage.Character, frostfireNotThereBuff,
+			consume := spelldata.ProcTrigger(character, frostfireNotThereBuff,
 				func(sim *core.Simulation, _ *core.Spell, _ *core.SpellResult) {
 					buff.Deactivate(sim)
 				})
@@ -121,7 +122,7 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 			// The rate is the proc chance column. The proc effect's class flags name another
 			// class's family, which the resolver drops. It listens to landed damage spells for the
 			// consume's reason, so the hit that procs it keeps its threat and the next one loses it.
-			trigger := spelldata.ProcTrigger(&mage.Character, frostfireNotThere,
+			trigger := spelldata.ProcTrigger(character, frostfireNotThere,
 				func(sim *core.Simulation, _ *core.Spell, _ *core.SpellResult) {
 					buff.Activate(sim)
 				})
@@ -132,60 +133,6 @@ var ItemSetFrostfireRegalia = core.NewItemSet(core.ItemSet{
 			trigger.RequireDamageComponent = true
 
 			setBonusAura.AttachProcTrigger(trigger)
-		},
-	},
-})
-
-var (
-	magisterSpellDamage = spelldata.MustFind(9346)   // 3pc: +18 spell damage
-	magisterManaProc    = spelldata.MustFind(450527) // 5pc: Mana Proc on Cast, the proc
-	magisterManaGain    = spelldata.MustFind(450554) // 5pc: Sudden Insight, the mana it grants
-	magisterMP5         = spelldata.MustFind(18378)  // 6pc: +8 mana per 5 sec
-)
-
-// (2) Set: all resistances, and (4) Set: a chance to freeze an attacker when struck, which a boss
-// fight does not test.
-var ItemSetMagistersRegalia = core.NewItemSet(core.ItemSet{
-	Name: "Magister's Regalia",
-	ID:   181,
-	Bonuses: map[int32]core.ApplySetBonus{
-		3: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
-			spelldata.ParseEffects(&mage.Character, setBonusAura, magisterSpellDamage)
-		},
-		5: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
-			manaMetrics := mage.NewManaMetrics(core.ActionID{SpellID: magisterManaGain.ID})
-			mana := magisterManaGain.EnergizeEffect().Average()
-
-			// The rate is the proc chance column with no cooldown, rolled on every spell cast, the
-			// tooltip's "your spellcasts".
-			trigger := spelldata.ProcTrigger(&mage.Character, magisterManaProc,
-				func(sim *core.Simulation, _ *core.Spell, _ *core.SpellResult) {
-					mage.AddMana(sim, mana, manaMetrics)
-				})
-			trigger.Name = "Magister's Regalia - 5PC"
-
-			setBonusAura.AttachProcTrigger(trigger)
-		},
-		6: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
-			spelldata.ParseEffects(&mage.Character, setBonusAura, magisterMP5)
-		},
-	},
-})
-
-var sorcererSpellDamage = spelldata.MustFind(14047) // 6pc: +23 spell damage
-
-// (2) Set: all resistances, (4) Set: a chance to freeze an attacker when struck, and (8) Set: armor,
-// none of which a boss fight tests.
-var ItemSetSorcerersRegalia = core.NewItemSet(core.ItemSet{
-	Name: "Sorcerer's Regalia",
-	ID:   517,
-	Bonuses: map[int32]core.ApplySetBonus{
-		6: func(agent core.Agent, setBonusAura *core.Aura) {
-			mage := agent.(MageAgent).GetMage()
-			spelldata.ParseEffects(&mage.Character, setBonusAura, sorcererSpellDamage)
 		},
 	},
 })

@@ -150,6 +150,8 @@ func (rot *APLRotation) newAPLValueWithContext(config *proto.APLValue, groupVari
 		value = rot.newValueUnitIsMoving(config.GetUnitIsMoving(), config.Uuid)
 	case *proto.APLValue_UnitDistance:
 		value = rot.newValueUnitDistance(config.GetUnitDistance(), config.Uuid)
+	case *proto.APLValue_UnitMovementSpeed:
+		value = rot.newValueUnitMovementSpeed(config.GetUnitMovementSpeed(), config.Uuid)
 
 	// GCD
 	case *proto.APLValue_GcdIsReady:
@@ -180,6 +182,8 @@ func (rot *APLRotation) newAPLValueWithContext(config *proto.APLValue, groupVari
 		value = rot.newValueSpellTravelTime(config.GetSpellTravelTime(), config.Uuid)
 	case *proto.APLValue_SpellCpm:
 		value = rot.newValueSpellCPM(config.GetSpellCpm(), config.Uuid)
+	case *proto.APLValue_SpellIsCasting:
+		value = rot.newValueSpellIsCasting(config.GetSpellIsCasting(), config.Uuid)
 	case *proto.APLValue_SpellIsChanneling:
 		value = rot.newValueSpellIsChanneling(config.GetSpellIsChanneling(), config.Uuid)
 	case *proto.APLValue_SpellChanneledTicks:
@@ -196,6 +200,18 @@ func (rot *APLRotation) newAPLValueWithContext(config *proto.APLValue, groupVari
 		value = rot.newValueSpellFullCooldown(config.GetSpellFullCooldown(), config.Uuid)
 	case *proto.APLValue_SpellInFlight:
 		value = rot.newValueSpellInFlight(config.GetSpellInFlight(), config.Uuid)
+	case *proto.APLValue_SpellExpectedDpet:
+		value = rot.newValueSpellExpectedDpet(config.GetSpellExpectedDpet(), config.Uuid)
+	case *proto.APLValue_SpellIsHitCapped:
+		value = rot.newValueSpellIsHitCapped(config.GetSpellIsHitCapped(), config.Uuid)
+	case *proto.APLValue_SpellIsExpertiseCapped:
+		value = rot.newValueSpellIsExpertiseCapped(config.GetSpellIsExpertiseCapped(), config.Uuid)
+
+	// Talents
+	case *proto.APLValue_TalentIsKnown:
+		value = rot.newValueTalentIsKnown(config.GetTalentIsKnown(), config.Uuid)
+	case *proto.APLValue_TalentRank:
+		value = rot.newValueTalentRank(config.GetTalentRank(), config.Uuid)
 
 	// Auras
 	case *proto.APLValue_AuraIsKnown:

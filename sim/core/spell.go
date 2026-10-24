@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/wowsims/forever/sim/core/dbcenums"
+	"github.com/wowsims/forever/sim/core/proto"
 	"github.com/wowsims/forever/sim/core/stats"
 )
 
@@ -39,7 +40,6 @@ type SpellConfig struct {
 	CastRequirement    CastRequirement
 	ShiftsTo           dbcenums.ShapeshiftForm // The form the spell puts its caster in; zero for none.
 	MenuGroup          string                  // A manual APL menu group, a rotation_tab.apl.submenus key.
-	Talent             int32                   // Spell id of the talent row that grants the spell; zero for none. For a spell registered in the talent phase, it picks the talent's tree in the APL pickers when the names differ.
 
 	// Optional range constraints. If supplied, these are used to modify the ExtraCastCondition above to additionally check for DistanceFromTarget.
 	MinRange     float64
@@ -56,9 +56,10 @@ type SpellConfig struct {
 	DamageMultiplierAdditive float64
 	CritMultiplierAdditive   float64 // Additive extra crit damage %
 
-	BonusBaseDamage  float64 // Certain items can increase the base damage of a spell e.g. https://www.wowhead.com/forever/item=28248/totem-of-the-void
-	BonusCoefficient float64 // EffectBonusCoefficient in the game files' SpellEffect table, "SP mod" on Wowhead (not necessarily shown there even if > 0)
-	DirectVariance   float64 // EffectVariance of a spell-school hit or a heal: the direct amount, power included, lands within ±DirectVariance/2 of itself.
+	BonusBaseDamage       float64 // Certain items can increase the base damage of a spell e.g. https://www.wowhead.com/forever/item=28248/totem-of-the-void
+	BonusCoefficient      float64 // EffectBonusCoefficient in the game files' SpellEffect table, "SP mod" on Wowhead (not necessarily shown there even if > 0)
+	DirectVariance        float64 // EffectVariance of a spell-school hit or a heal: the direct amount, power included, lands within ±DirectVariance/2 of itself.
+	TakenBonusCoefficient float64 // The coefficient the target's flat school bonus is taken at by a spell that sets no BonusCoefficient because its spell power goes through a weapon percent.
 
 	ThreatMultiplier float64
 
@@ -133,7 +134,6 @@ type Spell struct {
 	CastRequirement    CastRequirement
 	ShiftsTo           dbcenums.ShapeshiftForm // The form the spell puts its caster in; zero for none.
 	MenuGroup          string                  // A manual APL menu group, a rotation_tab.apl.submenus key.
-	Talent             int32                   // Spell id of the talent row that grants the spell; zero for none. Picks the tree only for a spell registered in the talent phase.
 	hasCastRequirement bool
 	casterAuras        []*Aura
 	excludeCasterAuras []*Aura
@@ -153,10 +153,12 @@ type Spell struct {
 	// Performs a cast of this spell.
 	castFn CastSuccessFunc
 
+	hitRanges      []*hitRanges
+	splitHitRanges [][]*hitRanges
+
 	SpellMetrics      []SpellMetrics
 	splitSpellMetrics [][]SpellMetrics // Used to split metrics by some condition.
 	casts             int              // Sum of casts on all targets, for efficient CPM calculation
-	lastAppliedAt     time.Duration    // When the spell last applied its effects; -NeverExpires if not yet this iteration.
 
 	// Performs the actions of this spell.
 	ApplyEffects ApplySpellResults
@@ -175,7 +177,8 @@ type Spell struct {
 	BonusExpertisePercent    float64
 	CastTimeMultiplier       float64
 	CdMultiplier             float64       // The product of the nonzero cooldown multiplier mods; CooldownMultiplier reads it.
-	cdMultiplierZeroes       int32         // Active cooldown multiplier mods of 0, which remove the cooldown and cannot be divided back out.
+	cdMultiplierZeroes       int32         // Active cooldown multiplier mods of 0 or below, which remove the cooldown and cannot be divided back out.
+	cdFlatDeficit            time.Duration // How far the flat cooldown mods take the cooldown below 0, where CD.Duration stops.
 	GCDMultiplier            float64       // Scales DefaultCast.GCD, after the flat GCD mods and before haste and the GCD minimum; 1 = unmodified. Fed by SpellMod_GlobalCooldown_Pct.
 	unscaledGCD              time.Duration // DefaultCast.GCD is rewritten from this on every GCD mod, so a direct write there is lost.
 	RangeMultiplier          float64       // Scales MaxRange, after the flat range mods; 1 = unmodified. Fed by SpellMod_Range_Pct.
@@ -188,9 +191,10 @@ type Spell struct {
 	CritMultiplierPct              float64 // Multiplies the base crit multiplier, 1 = unmodified. Fed by SpellMod_CritMultiplier_Pct.
 	CritMultiplierAdditive         float64 // Additive critical damage bonus
 
-	BonusBaseDamage  float64 // Certain items can increase the base damage of a spell e.g. https://www.wowhead.com/forever/item=28248/totem-of-the-void
-	BonusCoefficient float64 // EffectBonusCoefficient in the game files' SpellEffect table, "SP mod" on Wowhead (not necessarily shown there even if > 0)
-	DirectVariance   float64 // EffectVariance of a spell-school hit or a heal: the direct amount, power included, lands within ±DirectVariance/2 of itself.
+	BonusBaseDamage       float64 // Certain items can increase the base damage of a spell e.g. https://www.wowhead.com/forever/item=28248/totem-of-the-void
+	BonusCoefficient      float64 // EffectBonusCoefficient in the game files' SpellEffect table, "SP mod" on Wowhead (not necessarily shown there even if > 0)
+	DirectVariance        float64 // EffectVariance of a spell-school hit or a heal: the direct amount, power included, lands within ±DirectVariance/2 of itself.
+	TakenBonusCoefficient float64 // The coefficient the target's flat school bonus is taken at by a spell that sets no BonusCoefficient because its spell power goes through a weapon percent.
 
 	// Multiplier for all threat generated by this effect.
 	ThreatMultiplier float64
@@ -287,7 +291,6 @@ func (unit *Unit) RegisterSpell(config SpellConfig) *Spell {
 		CastRequirement:    config.CastRequirement,
 		ShiftsTo:           config.ShiftsTo,
 		MenuGroup:          config.MenuGroup,
-		Talent:             config.Talent,
 		hasCastRequirement: config.CastRequirement != CastRequirement{},
 
 		castTimeFn: config.Cast.CastTime,
@@ -312,15 +315,17 @@ func (unit *Unit) RegisterSpell(config SpellConfig) *Spell {
 		CritMultiplierPct:        1,
 		CritMultiplierAdditive:   config.CritMultiplierAdditive,
 
-		BonusBaseDamage:  config.BonusBaseDamage,
-		BonusCoefficient: config.BonusCoefficient,
-		DirectVariance:   config.DirectVariance,
+		BonusBaseDamage:       config.BonusBaseDamage,
+		BonusCoefficient:      config.BonusCoefficient,
+		DirectVariance:        config.DirectVariance,
+		TakenBonusCoefficient: config.TakenBonusCoefficient,
 
 		ThreatMultiplier:    config.ThreatMultiplier,
 		FlatThreatBonus:     config.FlatThreatBonus,
 		ThreatAPCoefficient: config.ThreatAPCoefficient,
 
 		splitSpellMetrics: make([][]SpellMetrics, max(1, config.MetricSplits)),
+		splitHitRanges:    make([][]*hitRanges, max(1, config.MetricSplits)),
 
 		RelatedAuraArrays: config.RelatedAuraArrays,
 		RelatedDotSpell:   config.RelatedDotSpell,
@@ -393,7 +398,7 @@ func (unit *Unit) RegisterSpell(config SpellConfig) *Spell {
 		spell.MaxRange = config.MaxRange
 		oldExtraCastCondition := spell.ExtraCastCondition
 		spell.ExtraCastCondition = func(sim *Simulation, target *Unit) bool {
-			if ((spell.MinRange != 0) && (spell.Unit.DistanceFromTarget < spell.MinRange)) || ((spell.MaxRange != 0) && (spell.Unit.DistanceFromTarget > spell.MaxRange*spell.RangeMultiplier)) {
+			if ((spell.MinRange != 0) && (spell.Unit.DistanceFromTarget < spell.MinRange)) || ((spell.MaxRange != 0) && (spell.Unit.DistanceFromTarget > spell.EffectiveMaxRange())) {
 				/*if sim.Log != nil {
 					sim.Log("Cannot cast spell %s, out of range!", spell.ActionID)
 				}*/
@@ -447,6 +452,12 @@ func (spell *Spell) Dot(target *Unit) *Dot {
 	}
 	return spell.dots.Get(target)
 }
+
+// The distance the range check allows: MaxRange after the range mods.
+func (spell *Spell) EffectiveMaxRange() float64 {
+	return spell.MaxRange * spell.RangeMultiplier
+}
+
 func (spell *Spell) CurDot() *Dot {
 	if spell.dots == nil {
 		if spell.RelatedDotSpell != nil {
@@ -549,6 +560,10 @@ func (spell *Spell) finalize() {
 		spell.splitSpellMetrics[i] = make([]SpellMetrics, len(spell.Unit.Env.AllUnits))
 	}
 	spell.SpellMetrics = spell.splitSpellMetrics[0]
+	for i := range spell.splitHitRanges {
+		spell.splitHitRanges[i] = make([]*hitRanges, len(spell.Unit.Env.AllUnits))
+	}
+	spell.hitRanges = spell.splitHitRanges[0]
 
 	if spell.hasCastRequirement {
 		spell.resolveCasterAuras()
@@ -568,7 +583,6 @@ func (spell *Spell) reset(sim *Simulation) {
 		}
 	}
 	spell.casts = 0
-	spell.lastAppliedAt = -NeverExpires
 	if spell.rechargeTimer != nil {
 		spell.rechargeTimer.Cancel(sim)
 		spell.rechargeTimer = nil
@@ -578,6 +592,7 @@ func (spell *Spell) reset(sim *Simulation) {
 
 func (spell *Spell) SetMetricsSplit(splitIdx int32) {
 	spell.SpellMetrics = spell.splitSpellMetrics[splitIdx]
+	spell.hitRanges = spell.splitHitRanges[splitIdx]
 	spell.ActionID.Tag = splitIdx
 
 	// Also set the tag on any dots to have them line up in the timeline
@@ -603,11 +618,42 @@ func (spell *Spell) doneIteration() {
 	}
 
 	if len(spell.splitSpellMetrics) == 1 {
-		spell.Unit.Metrics.addSpellMetrics(spell, spell.ActionID, spell.SpellMetrics)
+		spell.Unit.Metrics.addSpellMetrics(spell, spell.ActionID, spell.SpellMetrics, spell.hitRanges)
 	} else {
 		for i, spellMetrics := range spell.splitSpellMetrics {
-			spell.Unit.Metrics.addSpellMetrics(spell, spell.ActionID.WithTag(int32(i)), spellMetrics)
+			spell.Unit.Metrics.addSpellMetrics(spell, spell.ActionID.WithTag(int32(i)), spellMetrics, spell.splitHitRanges[i])
 		}
+	}
+}
+
+func (spell *Spell) rangesToRecord(target *Unit, value float64) *hitRanges {
+	if value <= 0 || spell.Flags.Matches(SpellFlagNoMetrics) {
+		return nil
+	}
+	hr := spell.hitRanges[target.UnitIndex]
+	if hr == nil {
+		hr = &hitRanges{}
+		spell.hitRanges[target.UnitIndex] = hr
+	}
+	return hr
+}
+
+func (spell *Spell) recordHit(target *Unit, kind proto.HitKind, value float64) {
+	if hr := spell.rangesToRecord(target, value); hr != nil {
+		hr.kinds[kind].add(value)
+	}
+}
+
+// Credits an absorbed or applied amount to the spell's shielding total and its shield range.
+func (spell *Spell) RecordShielding(target *Unit, amount float64) {
+	spell.SpellMetrics[target.UnitIndex].TotalShielding += amount
+	spell.recordHit(target, proto.HitKind_HitKindShield, amount)
+}
+
+// Feeds the named range in this spell's details, for values the hit kinds do not cover.
+func (spell *Spell) RecordCustomMetric(target *Unit, key string, value float64) {
+	if hr := spell.rangesToRecord(target, value); hr != nil {
+		hr.customRange(key).add(value)
 	}
 }
 
@@ -633,6 +679,11 @@ func (spell *Spell) ReadyAt() time.Duration {
 	return BothTimersReadyAt(spell.CD.Timer, spell.SharedCD.Timer)
 }
 
+// The longer of the spell's own cooldown and its shared category cooldown.
+func (spell *Spell) FullCooldown() time.Duration {
+	return max(spell.CD.Duration, spell.SharedCD.Duration)
+}
+
 func (spell *Spell) IsReady(sim *Simulation) bool {
 	if spell == nil {
 		return false
@@ -644,6 +695,37 @@ func (spell *Spell) TimeToReady(sim *Simulation) time.Duration {
 	return MaxTimeToReady(spell.CD.Timer, spell.SharedCD.Timer, sim)
 }
 
+// The time until the spell is ready as the unit's rotation reads it: during a hardcast that holds the
+// rotation, the cooldowns the casting spell starts when it lands read as running from the cast end.
+func (spell *Spell) rotationTimeToReady(sim *Simulation) time.Duration {
+	timeToReady := spell.TimeToReady(sim)
+	if spell.Unit.hardcastRuns(sim) {
+		timeToReady = max(timeToReady, spell.cooldownAfterLanding(sim))
+	}
+	return timeToReady
+}
+
+// How long the cooldown or shared cooldown the spell shares with the running cast keeps it from being ready
+// once that cast lands at the cast end; zero when it shares neither or the cast does not hold the rotation.
+func (spell *Spell) cooldownAfterLanding(sim *Simulation) time.Duration {
+	hc := &spell.Unit.Hardcast
+	cast := hc.spell
+	if cast == nil {
+		return 0
+	}
+	var cooldown time.Duration
+	if spell.CD.Timer != nil && spell.CD.Timer == cast.CD.Timer {
+		cooldown = time.Duration(float64(cast.CD.Duration) * cast.CooldownMultiplier())
+	}
+	if spell.SharedCD.Timer != nil && spell.SharedCD.Timer == cast.SharedCD.Timer {
+		cooldown = max(cooldown, time.Duration(float64(cast.SharedCD.Duration)*cast.CooldownMultiplier()))
+	}
+	if cooldown <= 0 || !spell.Unit.hardcastHoldsRotation(sim) {
+		return 0
+	}
+	return hc.Expires + cooldown - sim.CurrentTime
+}
+
 // Returns whether a call to Cast() would be successful, without actually
 // doing a cast.
 func (spell *Spell) CanCast(sim *Simulation, target *Unit) bool {
@@ -652,7 +734,7 @@ func (spell *Spell) CanCast(sim *Simulation, target *Unit) bool {
 	}
 
 	// While casting or channeling, no other action is possible
-	if spell.Unit.Hardcast.Expires > sim.CurrentTime {
+	if spell.Unit.hardcastRuns(sim) {
 		//if sim.Log != nil {
 		//	sim.Log("Cant cast because already casting/channeling")
 		//}
@@ -787,7 +869,6 @@ func (spell *Spell) SkipCastAndApplyEffects(sim *Simulation, target *Unit) {
 func (spell *Spell) applyEffects(sim *Simulation, target *Unit) {
 	spell.SpellMetrics[target.UnitIndex].Casts++
 	spell.casts++
-	spell.lastAppliedAt = sim.CurrentTime
 
 	// Not sure if we want to split this flag into its own?
 	// Both are used to optimize away unneccesery calls and 99%
@@ -807,6 +888,14 @@ func (spell *Spell) applyEffects(sim *Simulation, target *Unit) {
 func (spell *Spell) ApplyAOEThreatIgnoreMultipliers(threatAmount float64) {
 	for _, target := range spell.Unit.Env.GetActiveTargetUnits() {
 		spell.SpellMetrics[target.UnitIndex].TotalThreat += threatAmount
+	}
+}
+
+// Threat no single enemy draws, such as a heal's or a resource gain's, split between the targets in
+// combat at the time.
+func (spell *Spell) applySplitThreat(sim *Simulation, threat float64) {
+	if targets := len(sim.Encounter.ActiveTargetUnits); targets > 0 {
+		spell.ApplyAOEThreatIgnoreMultipliers(threat / float64(targets))
 	}
 }
 func (spell *Spell) ApplyAOEThreat(threatAmount float64) {
@@ -858,6 +947,22 @@ func (spell *Spell) CritDamageMultiplier(at *AttackTable) float64 {
 		tableMultiplier = at.CritMultiplier
 	}
 	return (base*spell.CritMultiplierPct*spell.Unit.PseudoStats.CritDamageMultiplier*tableMultiplier-1)*(spell.CritMultiplierAdditive+1) + 1
+}
+
+// The table the spell's outcome rolls, as a DefenseType. Auto shots roll the ranged weapon table whatever their
+// DefenseType, which for a wand's shots is Magic, and a spell without a DefenseType goes by its proc mask.
+func (spell *Spell) rolledDefenseType() DefenseType {
+	switch {
+	case spell.ProcMask.Matches(ProcMaskRangedAuto):
+		return DefenseTypeRanged
+	case spell.DefenseType != DefenseTypeNone:
+		return spell.DefenseType
+	case spell.ProcMask.Matches(ProcMaskRanged):
+		return DefenseTypeRanged
+	case spell.ProcMask.Matches(ProcMaskMelee):
+		return DefenseTypeMelee
+	}
+	return DefenseTypeMagic
 }
 
 // Time until either the cast is finished or GCD is ready again, whichever is longer

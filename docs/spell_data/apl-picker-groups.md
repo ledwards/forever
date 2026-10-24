@@ -29,34 +29,17 @@ of a ranked shift spell sits there behind its highest rank, and so does the aura
 
 ## Talent trees
 
-An entry that is a talent's files under the tree of its talent, found by its talent link, else by its
-name. A spell is a talent's when it is registered with `SourceTalent` (`Character.WithSource`): the
-metadata marks it `from_talent`, and since its category leaves the talent source out, `from_talent` is the
-only sign of it. An aura is a talent's when it carries the `Talents` category. The pickers look the talent
-up among the talents of the unit's class in `ui/sim/talents/trees/<class>.json`: by the link against
-`spellId`, else by the entry's name without the rank against `fancyName`. The entry files under the `name`
-of the tree that talent sits in, as the JSON writes it. The metadata states the class (`UnitMetadata.class`)
-for a player character only, so a pet's or a target's entries find no tree.
+An entry named after one of the build's talents files under that talent's tree. The metadata lists the
+talents the unit has points in (`UnitMetadata.talents`, each at its talent spell id and held rank). The
+pickers match an entry's name without the rank against each held talent's name without the rank, then look
+the talent's spell id up as `spellId` in `ui/sim/talents/trees/<class>.json`. The entry files under the
+`name` of the tree that talent sits in, as the JSON writes it. A pet or a target holds no talents, so its
+entries find no tree.
 
-A talent spell with no matching talent stays under `Spell`. A talent aura with no matching talent stays
-under `Talents`. A talent entry with another category, such as a talent's major cooldown under `Cooldowns`,
-keeps that category.
-
-When an entry's name differs from its talent's, set `Talent` on the `core.SpellConfig` (or `*core.Spell`)
-or `core.Aura` to the spell id of the talent row. An aura with no link of its own takes its casting spell's.
-The link only picks the tree of an entry that is already a talent's; on any other entry it files nothing. A
-link to a talent the class's JSON does not list falls back to the name. Twist of Light's Echo auras link the
-talent this way:
-
-```go
-talent := spellData.TwistOfLight.Rank(1)
-echo.aura = paladin.RegisterAura(core.Aura{
-	Label:    fmt.Sprintf("Echo (%d)%s", id, paladin.Label),
-	ActionID: core.ActionID{SpellID: id},
-	Duration: core.NeverExpires,
-	Talent:   talent.ID,
-})
-```
+Only an entry with no category or with the `Talents` category is matched. A talent entry with another
+category, such as a talent's major cooldown under `Cooldowns`, keeps that category. A spell with no
+matching talent stays under `Spell`, and a talent aura with none stays under `Talents`. That covers an aura
+whose name differs from its talent's, such as Twist of Light's Echo auras.
 
 ## Manual groups
 

@@ -50,7 +50,6 @@ type Aura struct {
 	Source          ActionSource // Left unset, registration fills in the phase it runs in.
 
 	MenuGroup string // A manual APL menu group, a rotation_tab.apl.submenus key.
-	Talent    int32  // Spell id of the talent row that grants the aura; zero takes its casting spell's. For an aura in the Talent category, it picks the talent's tree in the APL pickers when the names differ.
 
 	Icd *Cooldown           // The internal cooldown if any
 	Dpm *DynamicProcManager // Dynamic Proc manager for proc trigger auras if any
@@ -60,11 +59,6 @@ type Aura struct {
 	startTime time.Duration // Time at which the aura was applied.
 	expires   time.Duration // Time at which aura will be removed.
 	fadeTime  time.Duration // Time at which the aura was actually removed.
-	expired   bool          // Whether the aura last fell off by running out, rather than being removed early.
-
-	pendingActivations    int32         // Deferred proc handlers declared to activate the aura that have not run yet.
-	pendingOwnActivations int32         // Those of them from a guaranteed trigger off a spell its unit cast from its APL.
-	lastOwnProcAt         time.Duration // When an own trigger's handler last put the aura up, refreshed it or changed its stacks; -NeverExpires if not yet this iteration.
 
 	// The unit this aura is attached to.
 	Unit *Unit
@@ -144,11 +138,6 @@ func (aura *Aura) reset(sim *Simulation) {
 	}
 	aura.metrics.reset()
 	aura.fadeTime = -NeverExpires
-	aura.expired = false
-	// Deferred handlers still waiting when the last iteration ended never ran to count themselves off.
-	aura.pendingActivations = 0
-	aura.pendingOwnActivations = 0
-	aura.lastOwnProcAt = -NeverExpires
 
 	if aura.OnReset != nil {
 		aura.OnReset(aura, sim)
@@ -157,22 +146,6 @@ func (aura *Aura) reset(sim *Simulation) {
 	if aura.Dpm != nil {
 		aura.Dpm.Reset()
 	}
-}
-
-// Counts n deferred handlers on or off the aura's pending activations; a nil aura, undeclared, counts nothing.
-func (aura *Aura) addPending(own bool, n int32) {
-	if aura == nil {
-		return
-	}
-	aura.pendingActivations += n
-	if own {
-		aura.pendingOwnActivations += n
-	}
-}
-
-// Up, or declared by a deferred proc handler that has not run yet.
-func (aura *Aura) activeOrPending() bool {
-	return aura.IsActive() || aura.pendingActivations > 0
 }
 
 func (aura *Aura) doneIteration(sim *Simulation) {
@@ -853,7 +826,6 @@ func (aura *Aura) Deactivate(sim *Simulation) {
 		sim.CurrentTime = oldTime
 	}
 
-	aura.expired = sim.CurrentTime >= aura.expires
 	aura.expires = 0
 	aura.fadeTime = sim.CurrentTime
 	if aura.activeIndex != Inactive {
@@ -1231,6 +1203,16 @@ func (caster *Unit) NewAllyAuraArray(makeAura func(*Unit) *Aura) AuraArray {
 		if target.Type != EnemyUnit {
 			auras[target.UnitIndex] = makeAura(target)
 		}
+	}
+	return auras
+}
+
+// An aura on each player in the caster's party, the caster among them, and none on their pets.
+func (caster *Character) NewPartyAuraArray(makeAura func(*Character) *Aura) AuraArray {
+	auras := make([]*Aura, len(caster.Env.AllUnits))
+	for _, agent := range caster.Party.Players {
+		member := agent.GetCharacter()
+		auras[member.UnitIndex] = makeAura(member)
 	}
 	return auras
 }

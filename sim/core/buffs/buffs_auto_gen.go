@@ -16,10 +16,12 @@ import (
 var PaladinAuraCategory = "PaladinAura"
 
 // Blood Pact
+var BloodPactCategory = "BloodPact"
 var bloodPactSpell = spelldata.MustFind(11767)
 var bloodPactMeta = &Meta{
-	Label: "Blood Pact",
-	Spell: bloodPactSpell,
+	Label:    "Blood Pact",
+	Spell:    bloodPactSpell,
+	Category: BloodPactCategory,
 }
 
 func BloodPactValue(talentPoints int32) float64 {
@@ -274,6 +276,28 @@ func AdmiralsHatDuration(talentPoints int32) time.Duration {
 }
 func NewSpellDataAdmiralsHatAura(unit *core.Unit, isPlayer bool, talentPoints int32) *core.Aura {
 	return newBuff(unit, admiralsHatMeta, isPlayer, talentPoints)
+}
+
+// Dark Inspiration
+var DarkInspirationCategory = "DarkInspiration"
+var darkInspirationSpell = spelldata.MustFind(1326168)
+var darkInspirationMeta = &Meta{
+	Label:         "Dark Inspiration",
+	Spell:         darkInspirationSpell,
+	Category:      DarkInspirationCategory,
+	Talent:        spelldata.Talent(1326159, 5),
+	TalentEffect:  1,
+	TalentDivisor: 5,
+}
+
+func DarkInspirationValue(talentPoints int32) float64 {
+	return darkInspirationMeta.Value(talentPoints)
+}
+func DarkInspirationDuration(talentPoints int32) time.Duration {
+	return darkInspirationMeta.Duration(talentPoints)
+}
+func NewSpellDataDarkInspirationAura(unit *core.Unit, isPlayer bool, talentPoints int32) *core.Aura {
+	return newBuff(unit, darkInspirationMeta, isPlayer, talentPoints)
 }
 
 // Arcane Brilliance
@@ -862,6 +886,9 @@ func applyGeneratedBuffs(char *core.Character, raid *proto.RaidBuffs, party *pro
 	}
 	if party.AdmiralsHat {
 		core.MakePermanent(NewSpellDataAdmiralsHatAura(&char.Unit, false, 0))
+	}
+	if party.DarkInspiration > 0 {
+		core.MakePermanent(NewSpellDataDarkInspirationAura(&char.Unit, false, min(party.DarkInspiration, 5)))
 	}
 	if raid.ArcaneBrilliance {
 		core.MakePermanent(NewSpellDataArcaneBrillianceAura(&char.Unit, false, 0))

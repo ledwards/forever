@@ -166,6 +166,11 @@ func (dot *Dot) recomputeAuraDuration(_ *Simulation) {
 	dot.Duration = dot.tickPeriod * time.Duration(dot.remainingTicks)
 }
 
+// The duration an application now would give the dot.
+func (dot *Dot) freshDuration() time.Duration {
+	return dot.CalcTickPeriod() * time.Duration(dot.ExpectedTickCount())
+}
+
 // TickPeriod is how fast the snapshotted dot ticks.
 func (dot *Dot) TickPeriod() time.Duration {
 	return dot.tickPeriod
@@ -192,10 +197,9 @@ func (dot *Dot) HastedTickCount() int32 {
 }
 
 func (dot *Dot) ExpectedTickCount() int32 {
-	tickCount := dot.BaseTickCount
+	tickCount := dot.calculateTickCount(dot.BaseDuration(), dot.BaseTickLength)
 	if (dot.affectedByCastSpeed || dot.affectedByRealHaste) && !dot.hasteReducesDuration {
-		tickPeriod := dot.CalcTickPeriod()
-		tickCount = dot.calculateTickCount(dot.BaseDuration(), tickPeriod)
+		tickCount = dot.calculateTickCount(dot.BaseDuration(), dot.CalcTickPeriod())
 	}
 	return tickCount
 }

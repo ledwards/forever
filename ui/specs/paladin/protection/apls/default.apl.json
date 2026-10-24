@@ -159,12 +159,10 @@
 							{
 								"not": {
 									"val": {
-										"auraIsKnown": {
-											"sourceUnit": {
-												"type": "CurrentTarget"
-											},
-											"auraId": {
-												"spellId": 1310905
+										"talentIsKnown": {
+											"talentId": {
+												"spellId": 1310905,
+												"rank": 1
 											}
 										}
 									}
@@ -176,7 +174,7 @@
 										"type": "CurrentTarget"
 									},
 									"auraId": {
-										"spellId": 1310905
+										"spellId": 1280353
 									}
 								}
 							}

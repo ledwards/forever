@@ -10,21 +10,32 @@ var counterspellRank = spellData.Counterspell.Highest()
 func (mage *Mage) registerDefensiveSpells() {
 	// Only the highest rank is registered: the mage casts the rank configured here, not every rank
 	// spellData.FireWard lists.
-	mage.registerWardSpell(spellData.FireWard.Highest(), nil)
+	mage.registerWardSpell(spellData.FireWard.Highest(), nil, nil)
 	// Only the highest rank is registered: the mage casts the rank configured here, not every rank
 	// spellData.FrostWard lists.
-	mage.registerWardSpell(spellData.FrostWard.Highest(), nil)
+	mage.registerFrostWardSpell(spellData.FrostWard.Highest())
 	// Only the highest rank is registered: the mage casts the rank configured here, not every rank
 	// spellData.ManaShield lists.
 	mage.registerManaShieldSpell(spellData.ManaShield.Len(), spellData.ManaShield.Highest())
 	mage.registerCounterspellSpell()
 }
 
+// "Absorbs ${$s1+($SPFR*0.1)*($11189s3/100+1)} Frost damage". The spell power share is the
+// tooltip's, since the row states no coefficient, and Frost Warding's effect 3 raises the whole absorb.
+func (mage *Mage) registerFrostWardSpell(rank *spelldata.Spell) {
+	warding := 1 + spellData.FrostWarding.EffectAt(3).FractionAt(mage.Talents.FrostWarding)
+	base := rank.EffectN(1).Average()
+
+	mage.registerWardSpell(rank, func() float64 {
+		return warding * (base + 0.1*mage.frostSpellPower())
+	}, nil)
+}
+
 // An absorb shield on the row's effect 1, which takes only the school its misc names. Fire Ward and
-// Frost Ward ("Absorbs $s1 Fire damage. Lasts 30 sec.") share a category cooldown; their effect 2 is
-// the reflect Frost Warding and Improved Fire Ward give a chance to, which needs an enemy casting at
-// the mage, so it is not modelled.
-func (mage *Mage) registerWardSpell(rank *spelldata.Spell, onAbsorbed core.OnDamageAbsorbedCallback) *core.DamageAbsorptionAura {
+// Frost Ward share a category cooldown; their effect 2 is the reflect or negate Improved Fire Ward and
+// Frost Warding give a chance to, which needs an enemy casting at the mage, so it is not modelled.
+// The shield absorbs effect 1's value, or what absorbAt answers when the ward is cast.
+func (mage *Mage) registerWardSpell(rank *spelldata.Spell, absorbAt func() float64, onAbsorbed core.OnDamageAbsorbedCallback) *core.DamageAbsorptionAura {
 	absorbEffect := rank.EffectN(1)
 	school := core.SpellSchool(absorbEffect.Misc)
 	strength := absorbEffect.Average()
@@ -44,6 +55,9 @@ func (mage *Mage) registerWardSpell(rank *spelldata.Spell, onAbsorbed core.OnDam
 	config.RelatedSelfBuff = shield.Aura
 
 	config.ApplyEffects = func(sim *core.Simulation, _ *core.Unit, _ *core.Spell) {
+		if absorbAt != nil {
+			strength = absorbAt()
+		}
 		shield.Activate(sim)
 	}
 
@@ -59,7 +73,7 @@ func (mage *Mage) registerManaShieldSpell(_ int32, rank *spelldata.Spell) {
 	manaPerPoint := float64(rank.EffectN(1).Amplitude) * (1 + spellData.ArcaneShielding.EffectAt(1).FractionAt(mage.Talents.ArcaneShielding))
 	manaMetrics := mage.NewManaMetrics(core.ActionID{SpellID: rank.ID})
 
-	mage.registerWardSpell(rank,
+	mage.registerWardSpell(rank, nil,
 		func(sim *core.Simulation, shield *core.DamageAbsorptionAura, _ *core.SpellResult, absorbed float64) {
 			cost := absorbed * manaPerPoint
 			if cost >= mage.CurrentMana() {

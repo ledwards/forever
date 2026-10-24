@@ -8,7 +8,8 @@ import (
 // Only the highest rank is registered: the mage casts the rank configured here, not every rank
 // spellData.Frostbolt lists.
 func (mage *Mage) registerFrostboltSpell() {
-	mage.registerFrostboltRank(spellData.Frostbolt.Len(), spellData.Frostbolt.Highest())
+	//Rank 10 is last trainer taught spell
+	mage.registerFrostboltRank(spellData.Frostbolt.Len(), spellData.Frostbolt.Rank(10))
 }
 
 func (mage *Mage) registerFrostboltRank(_ int32, rank *spelldata.Spell) {

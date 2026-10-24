@@ -8,7 +8,7 @@ import { parseTalentsString, serializeTalentsString, totalPointsSpent, treePoint
 
 // A valid Forever mage build: 51 points, Fire left empty so the codec's empty-run
 // handling stays covered.
-const MAGE_DEFAULT = '25502252231221--2555';
+const MAGE_DEFAULT = '25502252231221--25352';
 
 describe('talents string codec', () => {
 	it('round-trips a real Forever default byte-identically, empty middle tree and all', () => {
@@ -22,7 +22,7 @@ describe('talents string codec', () => {
 			serializeTalentsString(points)
 				.split('-')
 				.map(tree => tree.length),
-		).toEqual([14, 0, 4]);
+		).toEqual([14, 0, 5]);
 	});
 
 	it('widens a short string to the config shape and trims it back', () => {
@@ -72,7 +72,7 @@ describe('talents string codec', () => {
 		const next = withTreeCleared(points, 0);
 		expect(treePointTotal(next, 0)).toBe(0);
 		expect(treePointTotal(next, 2)).toBe(treePointTotal(points, 2));
-		expect(serializeTalentsString(next)).toBe('--2555');
+		expect(serializeTalentsString(next)).toBe('--25352');
 	});
 
 	it('counts every point in a full default build', () => {

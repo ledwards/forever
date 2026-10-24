@@ -1,3 +1,4 @@
+import { useOnboardingRestart } from '@features/onboarding';
 import i18n from '@i18n/config';
 import { setLang, supportedLanguages } from '@i18n/locale_service';
 import { useSim } from '@sim/context/SimHostContext';
@@ -10,12 +11,12 @@ import { Dialog } from '@ui-kit/Dialog';
 import { FieldGrid } from '@ui-kit/FieldGrid';
 import { HelpText } from '@ui-kit/FormControl';
 import { NumberField } from '@ui-kit/TextField';
-import { toastManager } from '@ui-kit/Toast';
 import { Tooltip, tooltipAnchorProps } from '@ui-kit/Tooltip';
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import { trackEvent } from '../../tracking/utils';
 import type { SimHostObject } from '../individual_sim_ui';
+import { restoreDefaults } from '../restore_defaults';
 
 export interface SettingsDialogViewProps {
 	open: boolean;
@@ -42,6 +43,8 @@ export interface SettingsDialogViewProps {
 	/** Shows the memory note under the worker picker. */
 	firefox: boolean;
 	onApplyDefaults: () => void;
+	/** Closes the dialog and opens the guided tour from its first card; absent where the page has no tour. */
+	onRestartTour?: () => void;
 }
 
 const LANGUAGE_OPTIONS: Array<ChoiceOption<string>> = Object.entries(supportedLanguages).map(([language, name]) => ({ value: language, label: name }));
@@ -80,6 +83,7 @@ export const SettingsDialogView = ({
 	maxWorkers,
 	firefox,
 	onApplyDefaults,
+	onRestartTour,
 }: SettingsDialogViewProps) => {
 	const restoreTooltipId = useId();
 
@@ -98,6 +102,11 @@ export const SettingsDialogView = ({
 			title={i18n.t('info.options.title')}
 			footer={
 				<>
+					{onRestartTour && (
+						<Button variant="outline-primary" className="mr-2" data-testid="restart-tour" onClick={onRestartTour}>
+							{i18n.t('info.options.restart_tour')}
+						</Button>
+					)}
 					<Button variant="primary" data-testid="restore-defaults" {...tooltipAnchorProps(restoreTooltipId)} onClick={onApplyDefaults}>
 						{i18n.t('info.options.restore_defaults.button')}
 					</Button>
@@ -197,6 +206,7 @@ export const SettingsDialog = ({ open, onOpenChange, host }: SettingsDialogProps
 	const showPowerTools = useUiStore('showPowerTools');
 	const showQuickSwap = useUiStore('showQuickSwap');
 	const wasmConcurrency = useUiStore('wasmConcurrency');
+	const restartTour = useOnboardingRestart();
 
 	// Local sim has native threading, so the row is only meaningful on wasm. It starts shown because
 	// the answer is a promise.
@@ -234,12 +244,6 @@ export const SettingsDialog = ({ open, onOpenChange, host }: SettingsDialogProps
 		sim.setWasmConcurrency(workers);
 	};
 
-	const applyDefaults = () => {
-		trackEvent({ action: 'settings', category: 'restore-defaults', label: 'restore' });
-		host.applyDefaults();
-		toastManager.add({ variant: 'success', body: i18n.t('info.options.restore_defaults.success_message') });
-	};
-
 	return (
 		<SettingsDialogView
 			open={open}
@@ -262,7 +266,14 @@ export const SettingsDialog = ({ open, onOpenChange, host }: SettingsDialogProps
 			showConcurrency={isWasm}
 			maxWorkers={navigator.hardwareConcurrency}
 			firefox={navigator.userAgent.toLowerCase().includes('firefox')}
-			onApplyDefaults={applyDefaults}
+			onApplyDefaults={() => restoreDefaults(host)}
+			onRestartTour={
+				restartTour &&
+				(() => {
+					onOpenChange(false);
+					restartTour();
+				})
+			}
 		/>
 	);
 };

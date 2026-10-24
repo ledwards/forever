@@ -48,6 +48,8 @@ func (paladin *Paladin) registerHolyShockRank(_ int32, rank *spelldata.Spell) {
 	healConfig := paladin.holyShockConfig(rank, healRow.ID, healRow, heal, core.ProcMaskSpellHealing)
 	healConfig.Flags |= core.SpellFlagHelpful
 	healConfig.ClassSpellMask = SpellMaskHolyShockHeal
+	// In game the heal makes 0.25 threat a point healed, as Holy Light does. The damage makes full threat.
+	healConfig.ThreatMultiplier = 0.5
 	healConfig.ApplyEffects = func(sim *core.Simulation, target *core.Unit, spell *core.Spell) {
 		spell.CalcAndDealHealing(sim, target, heal.Average(), spell.OutcomeHealingCrit)
 	}

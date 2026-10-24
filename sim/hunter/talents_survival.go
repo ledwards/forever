@@ -14,10 +14,10 @@ func (hunter *Hunter) registerSurvivalTalents() {
 	// Entrapment (19184) roots on a trap the sim does not place.
 	hunter.registerSavageStrikes()
 	hunter.registerSurvivalist()
-	// Improved Wing Clip (19228) is a root chance on a snare the sim does not cast.
+	// Improved Wing Clip (19228) is a root chance on Wing Clip, which a boss shrugs off.
 
 	// Tier 3
-	// Clever Traps (19239): the sim places no traps.
+	hunter.registerCleverTraps()
 	hunter.registerSurefooted()
 	// Deterrence (19263) is parry and dodge the sim's targets do not test.
 
@@ -29,7 +29,7 @@ func (hunter *Hunter) registerSurvivalTalents() {
 	// Tier 5
 	hunter.registerResourcefulness()
 	// Expose Prey: mongoose_bite.go
-	// Survivalist's Discipline (1310496) shortens the trap and Deterrence cooldowns, none registered.
+	hunter.registerSurvivalistsDiscipline()
 	hunter.registerStriderKick()
 
 	// Tier 6
@@ -115,6 +115,16 @@ func (hunter *Hunter) registerResourcefulness() {
 	hunter.MakeProcTriggerAura(trigger)
 }
 
+// The cooldown mod matches every trap's placement spell and Deterrence; the sim registers only the
+// Immolation and Explosive Trap placements, and their shared category cooldown shortens with them.
+func (hunter *Hunter) registerSurvivalistsDiscipline() {
+	if hunter.Talents.SurvivalistsDiscipline == 0 {
+		return
+	}
+
+	spelldata.ParseStatic(&hunter.Character, spellData.SurvivalistsDiscipline.Rank(hunter.Talents.SurvivalistsDiscipline))
+}
+
 var striderKickRank = spellData.StriderKick.Highest()
 
 // Effect 1 is normalised weapon damage with no bonus; effect 2 is the share of it, 100%.
@@ -127,9 +137,15 @@ func (hunter *Hunter) registerStriderKick() {
 
 	config := spelldata.SpellConfig(&hunter.Unit, striderKickRank, spelldata.Melee(core.ProcMaskMeleeMHSpecial))
 
+	// Effect 3 is the hunter's own movement speed for the row's duration.
+	// TODO: In-game testing required. The speed is taken to come with a kick that misses too.
+	speed := hunter.RegisterAura(spelldata.AuraConfig(striderKickRank))
+	speed.NewActiveMovementSpeedEffect(striderKickRank.EffectN(3).Percent())
+
 	config.ApplyEffects = func(sim *core.Simulation, target *core.Unit, spell *core.Spell) {
 		baseDamage := striderKickWeaponShare * hunter.MHNormalizedWeaponDamage(sim, spell.MeleeAttackPower(target))
 		spell.CalcAndDealDamage(sim, target, baseDamage, spell.OutcomeMeleeSpecialHitAndCrit)
+		speed.Activate(sim)
 	}
 
 	hunter.RegisterSpell(config)
@@ -199,4 +215,14 @@ func (hunter *Hunter) registerLaceratingStrikes() {
 	}
 
 	hunter.MakeProcTriggerAura(trigger)
+}
+
+// Effect 1 lengthens the crowd control traps, which the sim does not place; effect 2 raises the
+// Immolation and Explosive Trap damage.
+func (hunter *Hunter) registerCleverTraps() {
+	if hunter.Talents.CleverTraps == 0 {
+		return
+	}
+
+	spelldata.ParseStatic(&hunter.Character, spellData.CleverTraps.Rank(hunter.Talents.CleverTraps), spelldata.Effects(2))
 }
