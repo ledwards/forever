@@ -2,7 +2,7 @@
 
 The APL cast-spell and aura pickers file each entry under one submenu. They try, in order:
 
-1. the top level, for a shift spell of the unit and the aura with its id;
+1. the top level, for a shift spell of the unit and the aura of the same name;
 2. a manual group the sim names (`MenuGroup`);
 3. its category (`Cooldowns`, `Consumables`, `Items`, `Racials`, `Professions`, `External Buffs`, ...),
    except `Talents`;
@@ -31,7 +31,7 @@ of a ranked shift spell sits there behind its highest rank, and so does the aura
 
 An entry named after one of the build's talents files under that talent's tree. The metadata lists the
 talents the unit has points in (`UnitMetadata.talents`, each at its talent spell id and held rank). The
-pickers match an entry's name without the rank against each held talent's name without the rank, then look
+pickers match an entry's name without the rank and its tag against each held talent's name, then look
 the talent's spell id up as `spellId` in `ui/sim/talents/trees/<class>.json`. The entry files under the
 `name` of the tree that talent sits in, as the JSON writes it. A pet or a target holds no talents, so its
 entries find no tree.
