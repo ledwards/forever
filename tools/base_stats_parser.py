@@ -39,10 +39,14 @@ SPELL_CRIT_BASE = "chancetospellcritbase.txt"
 COMBAT_RATINGS = "combatratings.txt"
 
 # Read out of sim/core/constants.go rather than repeated here, so there is one place
-# that says what level this sim runs at.
+# that says what level this sim runs at by default. The level is a variable the process
+# reads from LEVELSIM_LEVEL at init; the generator reads the default in its initializer.
 def GoConstant(name: str):
     text = open(BASE_DIR + CONSTANTS_PATH).read()
-    return float(re.search(rf"^const {name} = ([\d.]+)$", text, re.M).group(1))
+    match = re.search(rf"^const {name} = ([\d.]+)$", text, re.M)
+    if match is None:
+        match = re.search(rf"^var {name} int32 = characterLevelFromEnvironment\((\d+)\)$", text, re.M)
+    return float(match.group(1))
 
 
 BASE_LEVEL = int(GoConstant("CharacterLevel"))

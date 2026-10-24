@@ -159,7 +159,7 @@ func (d DBCTooltipDataProvider) GetOffHandWeapon() *core.Weapon {
 }
 
 func (d DBCTooltipDataProvider) GetPlayerLevel() float64 {
-	return core.CharacterLevel
+	return float64(core.CharacterLevel)
 }
 
 func (d DBCTooltipDataProvider) GetSpellDescription(spellId int64) string {
@@ -241,7 +241,7 @@ func (d DBCTooltipDataProvider) GetEffectScaledValue(spellId int64, effectIdx in
 
 		spell := d.DBC.Spells[int(spellId)]
 		if spell.MaxScalingLevel > 0 {
-			baseDamage += effect.EffectRealPointsPerLevel * math.Min(float64(spell.MaxScalingLevel), core.CharacterLevel)
+			baseDamage += effect.EffectRealPointsPerLevel * math.Min(float64(spell.MaxScalingLevel), float64(core.CharacterLevel))
 		} else {
 			baseDamage += float64(effect.EffectDieSides)
 		}

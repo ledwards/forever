@@ -1,12 +1,37 @@
 package core
 
 import (
+	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/wowsims/forever/sim/core/proto"
 )
 
-const CharacterLevel = 60
+// The level every character in this process is at. It is read from LEVELSIM_LEVEL once, while this
+// package initializes, because the class packages price spell amounts and pick spell ranks in their
+// own package-level initializers, before main runs: core initializes first, so a value set here is
+// the one they see. One process runs one level; a sim at another level is another process.
+var CharacterLevel int32 = characterLevelFromEnvironment(60)
+
+// Highest character level in the game.
+const MaxCharacterLevel = 60
+
+// The level LEVELSIM_LEVEL names, or the default when it is unset. A value that is not a whole number
+// from 1 to MaxCharacterLevel stops the process here, naming the variable: running at 60 by accident
+// would report numbers for a level the caller did not ask for.
+func characterLevelFromEnvironment(defaultLevel int32) int32 {
+	raw, set := os.LookupEnv("LEVELSIM_LEVEL")
+	if !set || raw == "" {
+		return defaultLevel
+	}
+	level, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || level < 1 || level > MaxCharacterLevel {
+		panic(fmt.Sprintf("LEVELSIM_LEVEL=%q: want a whole number from 1 to %d", raw, MaxCharacterLevel))
+	}
+	return int32(level)
+}
 const MinIlvl = 60
 const MaxIlvl = 600
 
