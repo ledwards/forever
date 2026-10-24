@@ -478,6 +478,9 @@ message RaidSimResult {
 	// Each iteration's length in seconds, in order, when save_all_values is set: a kill's time in
 	// a health fight, the death's where one ended it, the cap's otherwise.
 	repeated double iteration_durations = 8;
+	// Beside each duration, whether that iteration spent the targets' health: a kill. Empty for a
+	// duration fight, where no iteration is a kill.
+	repeated bool iteration_kills = 9;
 }
 
 message RaidSimRequestSplitRequest {

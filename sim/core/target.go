@@ -38,6 +38,8 @@ type Encounter struct {
 	iterations  int32
 	kills       int32
 	killTimeSum float64
+	// Whether the iteration just done was a kill.
+	lastIterationKilled bool
 }
 
 func areaTypeSet(areaTypes []proto.AreaType) []proto.AreaType {
@@ -158,7 +160,8 @@ func (encounter *Encounter) doneIteration(sim *Simulation) {
 		target.doneIteration(sim)
 	}
 	encounter.iterations++
-	if encounter.EndFightAtHealth > 0 && encounter.DamageTaken >= encounter.EndFightAtHealth {
+	encounter.lastIterationKilled = encounter.EndFightAtHealth > 0 && encounter.DamageTaken >= encounter.EndFightAtHealth
+	if encounter.lastIterationKilled {
 		encounter.kills++
 		encounter.killTimeSum += sim.CurrentTime.Seconds()
 	}

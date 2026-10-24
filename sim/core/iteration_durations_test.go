@@ -24,9 +24,26 @@ func TestIterationDurationsAreSavedOnRequest(t *testing.T) {
 	if math.Abs(sum/12-result.AvgIterationDuration) > 1e-9 {
 		t.Fatalf("durations average %v s, result says %v s", sum/12, result.AvgIterationDuration)
 	}
+	if len(result.IterationKills) != 12 {
+		t.Fatalf("%d kill flags for 12 iterations", len(result.IterationKills))
+	}
+	for i, killed := range result.IterationKills {
+		if !killed {
+			t.Fatalf("iteration %d of a fight the tester always wins is not a kill", i)
+		}
+	}
 	plain, _ := runDeathTest(t, deathTestRequest(0, 2, 60, 300, &proto.SimOptions{Iterations: 3, SkipPresim: true, MaxFightSeconds: 60}))
-	if len(plain.IterationDurations) != 0 {
-		t.Fatalf("durations saved without the option")
+	if len(plain.IterationDurations) != 0 || len(plain.IterationKills) != 0 {
+		t.Fatalf("durations or kills saved without the option")
+	}
+	// A cap or a death ends an iteration without a kill, and a duration fight never kills.
+	capped, _ := runDeathTest(t, deathTestRequest(0, 2, 60, 1e9, &proto.SimOptions{Iterations: 2, SkipPresim: true, MaxFightSeconds: 5, SaveAllValues: true}))
+	dead, _ := runDeathTest(t, deathTestRequest(1000, 2, 60, 1e9, &proto.SimOptions{Iterations: 2, SkipPresim: true, MaxFightSeconds: 60, EndOnPlayerDeath: true, SaveAllValues: true}))
+	timed, _ := runDeathTest(t, deathTestRequest(0, 2, 10, 0, &proto.SimOptions{Iterations: 2, SaveAllValues: true}))
+	for name, r := range map[string]*proto.RaidSimResult{"capped": capped, "dead": dead, "timed": timed} {
+		if len(r.IterationKills) != 2 || r.IterationKills[0] || r.IterationKills[1] {
+			t.Fatalf("%s fight: kill flags %v, want two false", name, r.IterationKills)
+		}
 	}
 }
 
