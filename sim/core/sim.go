@@ -321,6 +321,11 @@ func (sim *Simulation) run() *proto.RaidSimResult {
 		firstIterationDuration = sim.CurrentTime
 	}
 	totalDuration := firstIterationDuration
+	var iterationDurations []float64
+	if sim.Options.SaveAllValues {
+		iterationDurations = make([]float64, 0, sim.Options.Iterations)
+		iterationDurations = append(iterationDurations, firstIterationDuration.Seconds())
+	}
 
 	if !sim.Options.Debug {
 		sim.Log = nil
@@ -357,6 +362,9 @@ func (sim *Simulation) run() *proto.RaidSimResult {
 			iterDuration = sim.CurrentTime
 		}
 		totalDuration += iterDuration
+		if sim.Options.SaveAllValues {
+			iterationDurations = append(iterationDurations, iterDuration.Seconds())
+		}
 	}
 	result := &proto.RaidSimResult{
 		RaidMetrics:      sim.Raid.GetMetrics(),
@@ -366,6 +374,7 @@ func (sim *Simulation) run() *proto.RaidSimResult {
 		FirstIterationDuration: firstIterationDuration.Seconds(),
 		AvgIterationDuration:   totalDuration.Seconds() / float64(sim.Options.Iterations),
 		IterationsDone:         sim.Options.Iterations,
+		IterationDurations:     iterationDurations,
 	}
 
 	// Final progress report

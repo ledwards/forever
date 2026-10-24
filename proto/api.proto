@@ -475,6 +475,9 @@ message RaidSimResult {
 	ErrorOutcome error = 5;
 
 	int32 iterations_done = 7;
+	// Each iteration's length in seconds, in order, when save_all_values is set: a kill's time in
+	// a health fight, the death's where one ended it, the cap's otherwise.
+	repeated double iteration_durations = 8;
 }
 
 message RaidSimRequestSplitRequest {

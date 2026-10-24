@@ -406,6 +406,7 @@ func (rsrc *raidSimResultCombiner) AddResult(result *proto.RaidSimResult, isLast
 
 	rsrc.Combined.AvgIterationDuration += result.AvgIterationDuration * weight
 	rsrc.Combined.IterationsDone += result.IterationsDone
+	rsrc.Combined.IterationDurations = append(rsrc.Combined.IterationDurations, result.IterationDurations...)
 
 	if rsrc.Debug {
 		rsrc.Combined.Logs += "-SIMSTART-\n" + result.Logs
