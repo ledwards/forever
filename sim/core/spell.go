@@ -38,6 +38,8 @@ type SpellConfig struct {
 	ExtraCastCondition CanCastCondition
 	CastRequirement    CastRequirement
 
+	Unlearned bool // The rank is taught above CharacterLevel: known to the spellbook, never castable.
+
 	// Optional range constraints. If supplied, these are used to modify the ExtraCastCondition above to additionally check for DistanceFromTarget.
 	MinRange     float64
 	MaxRange     float64
@@ -86,6 +88,8 @@ type Spell struct {
 	ActionID
 	//Rank of the spell.
 	Rank int32
+	// The rank is taught above CharacterLevel: known to the spellbook, never castable.
+	Unlearned bool
 
 	// The unit who will perform this spell.
 	Unit *Unit
@@ -267,6 +271,7 @@ func (unit *Unit) RegisterSpell(config SpellConfig) *Spell {
 	spell := &Spell{
 		ActionID:       config.ActionID,
 		Rank:           config.Rank,
+		Unlearned:      config.Unlearned,
 		Unit:           unit,
 		SpellSchool:    config.SpellSchool,
 		DefenseType:    config.DefenseType,

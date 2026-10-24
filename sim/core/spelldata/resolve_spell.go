@@ -142,6 +142,12 @@ func SpellConfig(unit *core.Unit, s *Spell, opts ...SpellOpt) core.SpellConfig {
 	if radius, ok := casterAreaRadius(s); ok && (config.MaxRange == 0 || damage.HitsAroundTheCaster()) {
 		config.MaxRange = core.TernaryFloat64(config.Flags.Matches(core.SpellFlagPassiveSpell), 0, float64(radius))
 	}
+	// A rank taught above the process level is in the spellbook, so the APL can see it, and never
+	// castable, whatever the caller's own condition says.
+	if s.Unlearned {
+		config.Unlearned = true
+		config.ExtraCastCondition = func(*core.Simulation, *core.Unit) bool { return false }
+	}
 	return config
 }
 

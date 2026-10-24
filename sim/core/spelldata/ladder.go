@@ -12,16 +12,71 @@ import (
 // spell with a curve. Rank 0 is untaken, so the readers below answer 0 there instead of panicking.
 type Ladder struct {
 	ranks []*Spell
+
+	// Whether the ranks are spells taught at levels (Ranked), as against the points of one talent
+	// (Talent). Only taught ranks answer for core.CharacterLevel.
+	ranked bool
 }
 
 // A ladder of one spell per rank, lowest first. Every id has to be in the store: a rank named by typo
-// has to fail loudly rather than register nothing.
+// has to fail loudly rather than register nothing. The ids are told to core as ranks of one spell,
+// so an APL that names a rank the spellbook lacks can fall back to one it has.
 func Ranked(ids ...int32) Ladder {
 	ranks := make([]*Spell, len(ids))
+	siblings := make([]core.RankSibling, len(ids))
 	for i, id := range ids {
 		ranks[i] = MustFind(id)
+		siblings[i] = core.RankSibling{ID: id, LearnLevel: learnLevel(ranks[i])}
 	}
-	return Ladder{ranks: ranks}
+	core.RegisterRankSiblings(siblings)
+	return Ladder{ranks: ranks, ranked: true}
+}
+
+// The level the row is taught at, or 0 for a row with no SpellLevels data.
+func learnLevel(s *Spell) int32 {
+	if s.SpellLevel == 60 && s.BaseLevel == 60 && s.MaxLevel == 0 {
+		return 0
+	}
+	return int32(s.SpellLevel)
+}
+
+// Whether the row is taught at or below core.CharacterLevel. A row with no SpellLevels data carries
+// SpellLevel 60, BaseLevel 60 and MaxLevel 0, and is taught at every level; a row taught at 60 for
+// real carries a MaxLevel.
+func learnable(s *Spell) bool {
+	return learnLevel(s) <= core.CharacterLevel
+}
+
+// The row as the ladder answers it at core.CharacterLevel: the store's own pointer when the rank is
+// taught by then, otherwise a copy marked Unlearned, so no reader writes through to the store.
+func (l Ladder) atLevel(s *Spell) *Spell {
+	if !l.ranked || s == Nil || learnable(s) {
+		return s
+	}
+	unlearned := *s
+	unlearned.Unlearned = true
+	return &unlearned
+}
+
+// The highest rank taught at or below core.CharacterLevel, or the lowest rank, marked Unlearned, when
+// none is: the class code that registers its pick unconditionally still gets a row with a school
+// and a cost, and the spellbook carries a spell that cannot be cast yet.
+func (l Ladder) AtMost(n int32) *Spell {
+	if !l.ranked {
+		return l.Rank(n)
+	}
+	if n > l.Len() {
+		n = l.Len()
+	}
+	for i := n; i >= 1; i-- {
+		if learnable(l.ranks[i-1]) {
+			return l.ranks[i-1]
+		}
+	}
+	if len(l.ranks) == 0 {
+		return Nil
+	}
+	return l.atLevel(l.ranks[0])
 }
 
 // A ladder of a trait-tree talent, which is one spell whose per-rank numbers live in a curve. Each
@@ -57,19 +112,20 @@ func Talent(spellID int32, maxRanks int32) Ladder {
 	return Ladder{ranks: ranks}
 }
 
-// The spell at a rank. Rank 0 is untaken and answers Nil, as does a rank the ladder does not have.
+// The spell at a rank, marked Unlearned where it is taught above core.CharacterLevel. Rank 0 is
+// untaken and answers Nil, as does a rank the ladder does not have. The rank is exact so a triggered
+// ladder read beside its parent pairs rank with rank; AtMost is the reader for a pinned pick.
 func (l Ladder) Rank(n int32) *Spell {
 	if n <= 0 || n > l.Len() {
 		return Nil
 	}
-	return l.ranks[n-1]
+	return l.atLevel(l.ranks[n-1])
 }
 
+// The highest rank taught at or below core.CharacterLevel; see AtMost for what a ladder taught
+// entirely above it answers.
 func (l Ladder) Highest() *Spell {
-	if len(l.ranks) == 0 {
-		return Nil
-	}
-	return l.ranks[len(l.ranks)-1]
+	return l.AtMost(l.Len())
 }
 
 // The rank with this spell id. Panics on an id the ladder does not carry, the way MustFind does on a
@@ -92,9 +148,11 @@ func (l Ladder) Contains(spell *core.Spell) bool {
 	return slices.ContainsFunc(l.ranks, func(s *Spell) bool { return s.ID == spell.SpellID })
 }
 
+// Every rank in order, those taught above core.CharacterLevel marked Unlearned, so a class that
+// registers each rank and indexes by rank number sees no holes.
 func (l Ladder) Each(fn func(rank int32, s *Spell)) {
 	for i, s := range l.ranks {
-		fn(int32(i+1), s)
+		fn(int32(i+1), l.atLevel(s))
 	}
 }
 

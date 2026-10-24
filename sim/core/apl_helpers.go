@@ -240,10 +240,37 @@ func (rot *APLRotation) GetAPLSpell(spellId *proto.ActionID) *Spell {
 		}
 	}
 
+	// A rank taught above the level, whether the spellbook lacks it or carries it uncastable, stands
+	// in for the highest castable rank of the same spell: a rotation written at 60 names ranks a lower
+	// level has not been taught. A rank the level could know but the spellbook lacks is left alone.
+	if (spell == nil && RankTaughtAboveLevel(actionID.SpellID)) || (spell != nil && spell.Unlearned) {
+		if castable := rot.highestCastableSibling(actionID.SpellID); castable != nil {
+			rot.ValidationMessage(proto.LogLevel_Warning, "%s uses %s for %s, the highest rank known at level %d", rot.unit.Label, castable.ActionID, actionID, CharacterLevel)
+			spell = castable
+		}
+	}
+
 	if spell == nil {
 		rot.ValidationMessage(proto.LogLevel_Warning, "%s does not know spell %s", rot.unit.Label, actionID)
 	}
 	return spell
+}
+
+// The castable spell in the spellbook with the highest rank among the ranks of this spell id, or nil.
+// APL-marked spells win over unmarked ones of the same rank.
+func (rot *APLRotation) highestCastableSibling(spellID int32) *Spell {
+	var best *Spell
+	for _, sibling := range RankSiblings(spellID) {
+		for _, s := range rot.unit.Spellbook {
+			if s.SpellID != sibling.ID || s.Unlearned {
+				continue
+			}
+			if best == nil || s.Rank > best.Rank || (s.Rank == best.Rank && s.Flags.Matches(SpellFlagAPL) && !best.Flags.Matches(SpellFlagAPL)) {
+				best = s
+			}
+		}
+	}
+	return best
 }
 
 func (rot *APLRotation) GetTargetAPLSpell(spellId *proto.ActionID, targetUnit UnitReference) *Spell {

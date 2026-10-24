@@ -43,6 +43,11 @@ type Spell struct {
 	// 60 and MaxLevel 0, which is what the generator writes for "no level scaling".
 	SpellLevel, BaseLevel, MaxLevel int16
 
+	// Not a game files column: set on the copy a ranked Ladder answers for a rank taught above
+	// core.CharacterLevel. SpellConfig registers such a row so the spellbook knows it, with a cast
+	// condition that never holds. The store's own rows never carry it.
+	Unlearned bool
+
 	// SpellCastTimes.Base through SpellMisc.CastingTimeIndex.
 	CastTimeMs int32
 

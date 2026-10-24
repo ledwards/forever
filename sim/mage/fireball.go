@@ -9,7 +9,7 @@ import (
 // spellData.Fireball lists.
 func (mage *Mage) registerFireballSpell() {
 	//Rank 11 is last trainer taught spell
-	mage.registerFireballRank(spellData.Fireball.Len(), spellData.Fireball.Rank(11))
+	mage.registerFireballRank(spellData.Fireball.Len(), spellData.Fireball.AtMost(11))
 }
 
 func (mage *Mage) registerFireballRank(_ int32, rank *spelldata.Spell) {

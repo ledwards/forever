@@ -10,7 +10,7 @@ import (
 func (rot *APLRotation) newValueSpellIsKnown(config *proto.APLValueSpellIsKnown, uuid *proto.UUID) APLValue {
 	spell := rot.GetAPLSpell(config.SpellId)
 	return rot.newValueConst(&proto.APLValueConst{
-		Val: Ternary(spell != nil, "true", "false"),
+		Val: Ternary(spell != nil && !spell.Unlearned, "true", "false"),
 	}, uuid)
 }
 

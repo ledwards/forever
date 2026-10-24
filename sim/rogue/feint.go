@@ -5,7 +5,7 @@ import (
 	"github.com/wowsims/forever/sim/core/spelldata"
 )
 
-var feintRank = spellData.Feint.Rank(4)
+var feintRank = spellData.Feint.AtMost(4)
 
 // This exists purely to model the DPS loss of having to occasionally feint
 func (rogue *Rogue) registerFeintSpell() {

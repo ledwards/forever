@@ -9,7 +9,7 @@ import (
 // spellData.Frostbolt lists.
 func (mage *Mage) registerFrostboltSpell() {
 	//Rank 10 is last trainer taught spell
-	mage.registerFrostboltRank(spellData.Frostbolt.Len(), spellData.Frostbolt.Rank(10))
+	mage.registerFrostboltRank(spellData.Frostbolt.Len(), spellData.Frostbolt.AtMost(10))
 }
 
 func (mage *Mage) registerFrostboltRank(_ int32, rank *spelldata.Spell) {

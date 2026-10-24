@@ -9,7 +9,7 @@ import (
 // spellData.ArcaneMissiles lists.
 func (mage *Mage) registerArcaneMissilesSpell() {
 	//Rank 7 is last trainer taught spell
-	mage.registerArcaneMissilesRank(spellData.ArcaneMissiles.Len(), spellData.ArcaneMissiles.Rank(7))
+	mage.registerArcaneMissilesRank(spellData.ArcaneMissiles.Len(), spellData.ArcaneMissiles.AtMost(7))
 }
 
 // The channel's periodic effect names the missile it fires each tick, a rank of
