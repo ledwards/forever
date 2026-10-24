@@ -1,0 +1,47 @@
+# The levelsim engine patch must change nothing at level 60: upstream's own test suite runs here
+# on every push to the patch branch, and the level tests run at 1, 10, 30, 45 and 60.
+name: levelsim parity
+on:
+  push:
+    branches: [levelsim-patch]
+  pull_request:
+    branches: [levelsim-patch]
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25.x
+      - name: Install protoc
+        uses: ./.github/actions/setup-protoc
+      - name: Install the protoc Go plugin
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - name: Generate
+        run: make sim/core/proto/api.pb.go binary_dist/dist.go
+      - name: Upstream's suite at level 60
+        run: go list ./sim/... | grep -v '/sim/web$' | awk 'NR % 4 == ${{ matrix.shard }}' | xargs -r go test --tags=with_db
+  levels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25.x
+      - name: Install protoc
+        uses: ./.github/actions/setup-protoc
+      - name: Install the protoc Go plugin
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - name: Generate
+        run: make sim/core/proto/api.pb.go binary_dist/dist.go
+      - name: The level tests at 1, 10, 30, 45 and 60
+        run: make test-levels
