@@ -32,6 +32,7 @@ func characterLevelFromEnvironment(defaultLevel int32) int32 {
 	}
 	return int32(level)
 }
+
 const MinIlvl = 60
 const MaxIlvl = 600
 
