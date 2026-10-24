@@ -184,8 +184,12 @@ func (character *Character) trackChanceOfDeath(healingModel *proto.HealingModel)
 func (character *Character) Died(sim *Simulation) {
 	aura := character.GetAura(ChanceOfDeathAuraLabel)
 	aura.Unit.Metrics.Died = true
+	aura.Unit.Metrics.DiedAt = sim.CurrentTime
 	if sim.Log != nil {
 		character.Log(sim, "Dead")
+	}
+	if sim.Options.EndOnPlayerDeath {
+		sim.StopCombat()
 	}
 }
 

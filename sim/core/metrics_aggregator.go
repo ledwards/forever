@@ -99,6 +99,7 @@ type UnitMetrics struct {
 
 	// Aggregate values. These are updated after each iteration.
 	numItersDead int32
+	deathTimeSum float64 // Seconds, summed over the iterations the unit died in.
 	deathSeeds   []int64
 	oomTimeSum   float64
 	actions      map[ActionID]*ActionMetrics
@@ -108,8 +109,9 @@ type UnitMetrics struct {
 // Metrics for the current iteration, for 1 agent. Keep this as a separate
 // struct, so it's easy to clear.
 type CharacterIterationMetrics struct {
-	Died    bool // Whether this unit died in the current iteration.
-	WentOOM bool // Whether the agent has hit OOM at least once in this iteration.
+	Died    bool          // Whether this unit died in the current iteration.
+	DiedAt  time.Duration // When it died, where it did.
+	WentOOM bool          // Whether the agent has hit OOM at least once in this iteration.
 
 	ManaSpent  float64
 	ManaGained float64
@@ -584,6 +586,7 @@ func (unitMetrics *UnitMetrics) doneIteration(unit *Unit, sim *Simulation) {
 	unitMetrics.oomTimeSum += unitMetrics.OOMTime.Seconds()
 	if unitMetrics.Died {
 		unitMetrics.numItersDead++
+		unitMetrics.deathTimeSum += unitMetrics.DiedAt.Seconds()
 
 		if unitMetrics.deathSeeds == nil {
 			unitMetrics.deathSeeds = make([]int64, 0, sim.Options.Iterations)
@@ -668,14 +671,15 @@ func (unitMetrics *UnitMetrics) calculateTMI(unit *Unit, sim *Simulation) float6
 func (unitMetrics *UnitMetrics) ToProto() *proto.UnitMetrics {
 	n := float64(unitMetrics.dps.n)
 	protoMetrics := &proto.UnitMetrics{
-		Dps:           unitMetrics.dps.ToProto(),
-		Threat:        unitMetrics.threat.ToProto(),
-		Dtps:          unitMetrics.dtps.ToProto(),
-		Tmi:           unitMetrics.tmi.ToProto(),
-		Hps:           unitMetrics.hps.ToProto(),
-		Tto:           unitMetrics.tto.ToProto(),
-		SecondsOomAvg: unitMetrics.oomTimeSum / n,
-		ChanceOfDeath: float64(unitMetrics.numItersDead) / n,
+		Dps:                 unitMetrics.dps.ToProto(),
+		Threat:              unitMetrics.threat.ToProto(),
+		Dtps:                unitMetrics.dtps.ToProto(),
+		Tmi:                 unitMetrics.tmi.ToProto(),
+		Hps:                 unitMetrics.hps.ToProto(),
+		Tto:                 unitMetrics.tto.ToProto(),
+		SecondsOomAvg:       unitMetrics.oomTimeSum / n,
+		ChanceOfDeath:       float64(unitMetrics.numItersDead) / n,
+		AvgDeathTimeSeconds: TernaryFloat64(unitMetrics.numItersDead > 0, unitMetrics.deathTimeSum/float64(unitMetrics.numItersDead), 0),
 	}
 
 	if len(unitMetrics.deathSeeds) > 0 {

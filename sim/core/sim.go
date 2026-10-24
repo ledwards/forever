@@ -55,6 +55,7 @@ type Simulation struct {
 
 	endOfCombatDuration time.Duration
 	endOfCombatDamage   float64
+	combatStopped       bool // The iteration was ended at CurrentTime: a player died with end_on_player_death set.
 
 	minTrackerTime time.Duration
 	trackers       []*auraTracker
@@ -114,7 +115,7 @@ func (sim *Simulation) RemoveTask(task Task) {
 }
 
 func RunSim(rsr *proto.RaidSimRequest, progress chan *proto.ProgressMetrics, signals simsignals.Signals) *proto.RaidSimResult {
-	return runSim(rsr, progress, false, signals)
+	return runSim(rsr, progress, rsr.SimOptions.SkipPresim, signals)
 }
 
 func runSim(rsr *proto.RaidSimRequest, progress chan *proto.ProgressMetrics, skipPresim bool, signals simsignals.Signals) (result *proto.RaidSimResult) {
@@ -425,6 +426,17 @@ func (sim *Simulation) reset() {
 		sim.endOfCombatDuration = NeverExpires
 		sim.endOfCombatDamage = sim.Encounter.EndFightAtHealth
 	}
+	// The cap bounds a health fight that would otherwise run until the kill, and shortens a
+	// duration fight's duration.
+	if capped := DurationFromSeconds(sim.Options.MaxFightSeconds); sim.Options.MaxFightSeconds > 0 {
+		if sim.Encounter.EndFightAtHealth > 0 {
+			sim.endOfCombatDuration = capped
+		} else if capped < sim.Duration {
+			sim.Duration = capped
+			sim.endOfCombatDuration = capped
+		}
+	}
+	sim.combatStopped = false
 
 	sim.CurrentTime = 0
 
@@ -480,10 +492,17 @@ func (sim *Simulation) Cleanup() {
 	// The last event loop will leave CurrentTime at some value close to but not
 	// quite at the Duration. Explicitly set this so that accesses to CurrentTime
 	// during the doneIteration phase will return the Duration value, which is
-	// intuitive. When using Health sims use the actual end time
-	if sim.Encounter.EndFightAtHealth == 0 {
+	// intuitive. A health fight ends at the kill's time, or at its cap when the
+	// kill never came; an iteration a death stopped ends at the death.
+	switch {
+	case sim.combatStopped:
+		sim.Duration = sim.CurrentTime
+	case sim.Encounter.EndFightAtHealth == 0:
 		sim.CurrentTime = sim.Duration
-	} else {
+	case sim.Encounter.DamageTaken > sim.endOfCombatDamage || sim.endOfCombatDuration == NeverExpires:
+		sim.Duration = sim.CurrentTime
+	default:
+		sim.CurrentTime = sim.endOfCombatDuration
 		sim.Duration = sim.CurrentTime
 	}
 
@@ -514,7 +533,15 @@ func (sim *Simulation) runPendingActions() {
 	}
 }
 
+// Ends the iteration at CurrentTime: nothing after this moment runs.
+func (sim *Simulation) StopCombat() {
+	sim.combatStopped = true
+}
+
 func (sim *Simulation) Step() bool {
+	if sim.combatStopped {
+		return true
+	}
 	last := len(sim.pendingActions) - 1
 	pa := sim.pendingActions[last]
 

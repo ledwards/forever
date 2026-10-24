@@ -348,6 +348,13 @@ func (rsrc *raidSimResultCombiner) combineUnitMetrics(base *proto.UnitMetrics, a
 
 	base.SecondsOomAvg += add.SecondsOomAvg * weight
 	base.ChanceOfDeath += add.ChanceOfDeath * weight
+	// Each split's death time is an average over its deaths, so it weighs by that split's deaths:
+	// its chance times its share of the iterations. The sum divides by the combined chance once
+	// every split is in.
+	base.AvgDeathTimeSeconds += add.AvgDeathTimeSeconds * add.ChanceOfDeath * weight
+	if isLast && base.ChanceOfDeath > 0 {
+		base.AvgDeathTimeSeconds /= base.ChanceOfDeath
+	}
 
 	if add.DeathSeeds != nil {
 		base.DeathSeeds = append(base.DeathSeeds, add.DeathSeeds...)

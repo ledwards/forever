@@ -18,7 +18,7 @@ import "shaman.proto";
 import "warlock.proto";
 import "warrior.proto";
 
-// NextIndex: 62
+// NextIndex: 65
 message Player {
 	// Proto version at the time Player were saved.
 	// A "breaking change" here is defined as anything that will break saved
@@ -74,6 +74,14 @@ message Player {
 
 	// Talents in wowhead format, e.g. '000000'
 	string talents_string = 39;
+
+	// Where each iteration starts the character's mana and health, in percent of the maximum, applied
+	// after the agent's own reset so a form's maximum counts. Unset is full.
+	optional double starting_mana_percent = 62;
+	optional double starting_health_percent = 63;
+	// The same for the pets the character starts the fight with; a pet summoned during the fight
+	// starts full.
+	PetStartingResources pet_starting_resources = 64;
 	Profession profession1 = 41;
 	Profession profession2 = 42;
 	// Skill in profession1 and profession2; 0 means the maximum.
@@ -142,6 +150,22 @@ message SimOptions {
 	bool save_all_values = 7; // Only used internally.
 	bool interactive = 8; // Enables interactive mode.
 	bool use_labeled_rands = 9; // Use test level RNG.
+
+	// The iteration ends when a player's health reaches zero, at that time; without it the player
+	// keeps acting to the end of the fight.
+	bool end_on_player_death = 10;
+	// Skip the presim rounds, which a health fight otherwise runs to estimate its duration. A fight
+	// run this way needs max_fight_seconds to bound it.
+	bool skip_presim = 11;
+	// The longest an iteration runs, in seconds, whether the fight is by duration or by health. Zero
+	// is no cap.
+	double max_fight_seconds = 12;
+}
+
+// Where a character's pets start the fight, in percent of the maximum. Unset is full.
+message PetStartingResources {
+	optional double mana_percent = 1;
+	optional double health_percent = 2;
 }
 
 // The aggregated results from all uses of a particular action.
@@ -371,6 +395,9 @@ message UnitMetrics {
 
 	// Chance (0-1) representing probability of death. Used for tank sims.
 	double chance_of_death = 12;
+	// The time of death, in seconds, averaged over the iterations the unit died in; zero where it
+	// never died.
+	double avg_death_time_seconds = 17;
        repeated int64 death_seeds = 2;
 
 	repeated ActionMetrics actions = 5;

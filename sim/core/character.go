@@ -90,6 +90,10 @@ type Character struct {
 
 	// Used for manually modifying a rotation before it's constructed
 	rotationTransformations []RotationTransformation
+
+	// Where each iteration starts mana and health, as a share of the maximum; nil starts full.
+	startingManaPercent, startingHealthPercent *float64
+	petStartingResources                       *proto.PetStartingResources
 }
 
 func NewCharacter(party *Party, partyIndex int, player *proto.Player) Character {
@@ -118,6 +122,10 @@ func NewCharacter(party *Party, partyIndex int, player *proto.Player) Character 
 		Race:  player.Race,
 		Class: player.Class,
 		Spec:  PlayerProtoToSpec(player),
+
+		startingManaPercent:   player.StartingManaPercent,
+		startingHealthPercent: player.StartingHealthPercent,
+		petStartingResources:  player.PetStartingResources,
 
 		Equipment: ProtoToEquipment(player.Equipment).inArea(party.areaTypes()),
 
@@ -521,11 +529,30 @@ func (character *Character) reset(sim *Simulation, agent Agent) {
 	character.CurrentTarget = character.defaultTarget
 
 	agent.Reset(sim)
+	character.applyStartingResources(sim, character.startingManaPercent, character.startingHealthPercent)
 
 	character.ItemSwap.reset(sim)
 
 	for _, petAgent := range character.PetAgents {
-		petAgent.GetPet().reset(sim, petAgent)
+		pet := petAgent.GetPet()
+		pet.reset(sim, petAgent)
+		if pet.enabled && character.petStartingResources != nil {
+			pet.applyStartingResources(sim, character.petStartingResources.ManaPercent, character.petStartingResources.HealthPercent)
+		}
+	}
+}
+
+// Starts the iteration's mana and health at the given shares of the maximum, after the maximum is
+// settled. Zero health with end_on_player_death set is a death at the start.
+func (character *Character) applyStartingResources(sim *Simulation, manaPercent, healthPercent *float64) {
+	if manaPercent != nil && character.HasManaBar() {
+		character.manaBar.SetCurrentManaPercent(*manaPercent / 100)
+	}
+	if healthPercent != nil && character.HasHealthBar() {
+		character.healthBar.SetCurrentHealthPercent(*healthPercent / 100)
+		if character.CurrentHealth() <= 0 && sim.Options.EndOnPlayerDeath && character.HasAura(ChanceOfDeathAuraLabel) {
+			character.Died(sim)
+		}
 	}
 }
 

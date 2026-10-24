@@ -318,6 +318,14 @@ func (sim *Simulation) enableManaTicks() {
 	}
 }
 
+// Puts current mana at a share of the maximum with no gain or spend, so no metrics move.
+func (mb *manaBar) SetCurrentManaPercent(percent float64) {
+	if mb.unit == nil {
+		return
+	}
+	mb.currentMana = percent * mb.unit.MaxMana()
+}
+
 func (mb *manaBar) reset() {
 	if mb.unit == nil {
 		return
