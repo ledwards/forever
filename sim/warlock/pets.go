@@ -49,12 +49,12 @@ type petModel struct {
 //
 // The Sayaad's average swing before attack power: 0.698 of the creature dps at 2.0 s. Its sheet's damage range
 // spans 22.8% either side of the average at level 20 and 20.7% at 30, so 21.5%.
-const sayaadSwingAverage = 0.698 * core.CreatureAutoAttackDpsMaxLevel * 2
+var sayaadSwingAverage = 0.698 * core.CreatureAutoAttackDpsMaxLevel * 2
 
 // The Voidwalker's average swing before attack power and before its melee is halved: 0.494 of the creature dps
 // at 2.0 s, spanning 26.4% either side. The best fit to three level 30 sheets at attack power 96, 108 and 116
 // (16-22, 17-23 and 17-24).
-const voidwalkerSwingAverage = 0.494 * core.CreatureAutoAttackDpsMaxLevel * 2
+var voidwalkerSwingAverage = 0.494 * core.CreatureAutoAttackDpsMaxLevel * 2
 
 // The sheet gives no crit from Agility or Intellect, and a demon's own stats give no regen. A demon has
 // no crit of its own: its crit is the warlock's (see petStatInheritance). The Imp's, Voidwalker's and Sayaad's

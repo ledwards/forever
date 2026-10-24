@@ -116,7 +116,8 @@ var RaceOffsets = map[proto.Race]stats.Stats{
 	},
 }
 
-var ClassBaseStats = map[proto.Class]stats.Stats{
+// The level 60 rows; ClassBaseStats in base_stats_levels.go answers for CharacterLevel.
+var classBaseStatsAtSixty = map[proto.Class]stats.Stats{
 	proto.Class_ClassUnknown: {},
 	proto.Class_ClassWarrior: {
 		stats.Health:      1689,

@@ -618,6 +618,11 @@ message Target {
 
         // Custom Target AI parameters
         repeated TargetInput target_inputs = 18;
+
+        // Health, armor and an auto attack from the game files' creature row of the target's level,
+        // where stats are not given. A leveling mob is named by level and type; a raid target keeps
+        // stating its own.
+        bool stats_from_level = 21;
 }
 
 message Encounter {

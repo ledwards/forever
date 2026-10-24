@@ -47,7 +47,7 @@ var petBaseStats = stats.Stats{
 // Carrion Bird's 20-27 at 44 attack power and 2.0 s, and a level 17 Cat's 28-37 and 27-37 at 75 and 72,
 // swinging at 1.5 s with Faster Attack III, are the creature dps plus attack power over 14, over the swing
 // as sped up, with the Cat's +10%. The sheet leaves happiness out.
-const petSwingAverage = core.CreatureAutoAttackDpsMaxLevel * 2
+var petSwingAverage = core.CreatureAutoAttackDpsMaxLevel * 2
 
 var petSwing = core.Weapon{
 	BaseDamageMin: petSwingAverage * (1 - 0.2),

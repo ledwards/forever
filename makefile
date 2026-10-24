@@ -333,6 +333,16 @@ update-highs: node_modules
 test: $(OUT_DIR)/lib.wasm.gz binary_dist/dist.go
 	GOARCH=amd64 go test --tags=with_db ./sim/...
 
+# The level tests at every level a leveling sim is checked at. Each level is its own process: the
+# core package reads LEVELSIM_LEVEL once at init, so one test binary runs one level.
+LEVELS ?= 1 10 30 45 60
+.PHONY: test-levels
+test-levels:
+	@for level in $(LEVELS); do \
+		echo "LEVELSIM_LEVEL=$$level"; \
+		LEVELSIM_LEVEL=$$level go test --tags=with_db -run '^Test(CharacterLevel|InvalidCharacterLevel|BaseStatsAt|TargetDefaults|RankedLadder|LaddersAt|UnlearnedSpell|EveryClass|PresetRotation)' ./sim/core/ ./sim/core/spelldata/ ./sim/ || exit 1; \
+	done
+
 .PHONY: update-tests
 update-tests:
 	find . -name "*.results" -type f -delete

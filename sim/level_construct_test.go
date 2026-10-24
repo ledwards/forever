@@ -27,6 +27,10 @@ func runAtLevel(t *testing.T, level string, test string) (string, error) {
 
 func inLevelChild() bool { return os.Getenv("LEVELSIM_LEVEL_TEST_CHILD") == "1" }
 
+// Whether this process already runs at a chosen level, as a child of a test or under the makefile's
+// test-levels loop, so a test runs its body here rather than starting a child.
+func atChosenLevel() bool { return inLevelChild() || os.Getenv("LEVELSIM_LEVEL") != "" }
+
 // One player per class with a spec, a race that can play it, no talents and no gear.
 func minimalPlayers() map[string]*proto.Player {
 	return map[string]*proto.Player{
@@ -86,16 +90,17 @@ func minimalRequest(player *proto.Player) *proto.RaidSimRequest {
 		player.Rotation = &proto.APLRotation{Type: proto.APLRotation_TypeAPL}
 	}
 	return &proto.RaidSimRequest{
-		Raid:      &proto.Raid{Parties: []*proto.Party{{Players: []*proto.Player{player}}}},
-		Encounter: &proto.Encounter{Duration: 30, Targets: []*proto.Target{{Level: core.CharacterLevel, MobType: proto.MobType_MobTypeBeast}}},
+		Raid:       &proto.Raid{Parties: []*proto.Party{{Players: []*proto.Player{player}}}},
+		Encounter:  &proto.Encounter{Duration: 30, Targets: []*proto.Target{{Level: core.CharacterLevel, MobType: proto.MobType_MobTypeBeast}}},
 		SimOptions: &proto.SimOptions{Iterations: 2, RandomSeed: 1},
 	}
 }
 
-// Every class builds and fights at level 1: the ranks its code registers unconditionally are taught
-// above 1 for most spells, and each of those registers as a spell the character cannot cast yet.
+// Every class builds and fights at the chosen level, 1 by default: the ranks its code registers
+// unconditionally are taught above 1 for most spells, and each of those registers as a spell the
+// character cannot cast yet.
 func TestEveryClassConstructsAtLevelOne(t *testing.T) {
-	if !inLevelChild() {
+	if !atChosenLevel() {
 		if out, err := runAtLevel(t, "1", "TestEveryClassConstructsAtLevelOne"); err != nil {
 			t.Fatalf("child at level 1 failed: %v\n%s", err, out)
 		}
@@ -106,16 +111,17 @@ func TestEveryClassConstructsAtLevelOne(t *testing.T) {
 			player.Name = name
 			result := core.RunRaidSim(minimalRequest(player))
 			if result.Error != nil {
-				t.Fatalf("%s at level 1: %s", name, result.Error.Message)
+				t.Fatalf("%s at level %d: %s", name, core.CharacterLevel, result.Error.Message)
 			}
 		})
 	}
 }
 
-// A rotation written for 60 names ranks a level-30 character has not been taught; the APL falls back
-// to the highest rank the spellbook can cast, so the preset still casts rather than doing nothing.
+// A rotation written for 60 names ranks a lower level has not been taught; the APL falls back to
+// the highest rank the spellbook can cast, so the preset still casts rather than doing nothing. The
+// chosen level is 30 by default.
 func TestPresetRotationCastsAtLevelThirty(t *testing.T) {
-	if !inLevelChild() {
+	if !atChosenLevel() {
 		if out, err := runAtLevel(t, "30", "TestPresetRotationCastsAtLevelThirty"); err != nil {
 			t.Fatalf("child at level 30 failed: %v\n%s", err, out)
 		}
@@ -129,9 +135,9 @@ func TestPresetRotationCastsAtLevelThirty(t *testing.T) {
 	}
 	result := core.RunRaidSim(minimalRequest(player))
 	if result.Error != nil {
-		t.Fatalf("mage at level 30: %s", result.Error.Message)
+		t.Fatalf("mage at level %d: %s", core.CharacterLevel, result.Error.Message)
 	}
 	if dps := result.RaidMetrics.Dps.Avg; dps <= 0 {
-		t.Fatalf("mage at level 30 with the 60 preset dealt no damage; the rank fallback did not engage")
+		t.Fatalf("mage at level %d with the 60 preset dealt no damage; the rank fallback did not engage", core.CharacterLevel)
 	}
 }

@@ -175,6 +175,9 @@ func TestUnlearnedSpellConfigIsNotCastable(t *testing.T) {
 // Ranked ladders tell core which ids are ranks of one spell, so the APL can fall back from a rank
 // the spellbook lacks to one it has.
 func TestRankedLadderRegistersSiblings(t *testing.T) {
+	if inLevelChild() || os.Getenv("LEVELSIM_LEVEL") != "" {
+		t.Skip("runs at the default level only")
+	}
 	installLevelRows(t)
 	if inLevelChild() {
 		t.Skip("child process")

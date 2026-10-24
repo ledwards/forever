@@ -172,9 +172,26 @@ type Target struct {
 }
 
 func NewTarget(options *proto.Target, targetIndex int32) *Target {
+	defaultRaidBossLevel := int32(CharacterLevel + 3)
+	level := options.Level
+	if level == 0 {
+		level = defaultRaidBossLevel
+	}
+
 	unitStats := stats.Stats{}
 	if options.Stats != nil {
 		unitStats = stats.FromProtoArray(options.Stats)
+	} else if options.StatsFromLevel {
+		// The game files' creature of the target's level: its health and armor, and an auto attack
+		// of its dps over a 2.0 swing unless the caller gave it one.
+		if row, ok := CreatureRowAt(level); ok {
+			unitStats[stats.Health] = row.Health
+			unitStats[stats.Armor] = row.Armor
+			if options.SwingSpeed == 0 {
+				options.SwingSpeed = 2
+				options.MinBaseDamage = row.AutoAttackDps * 2
+			}
+		}
 	}
 
 	target := &Target{
@@ -195,12 +212,9 @@ func NewTarget(options *proto.Target, targetIndex int32) *Target {
 			enabled:               !options.DisabledAtStart,
 		},
 	}
-	defaultRaidBossLevel := int32(CharacterLevel + 3)
 	target.GCD = target.NewTimer()
 	target.RotationTimer = target.NewTimer()
-	if target.Level == 0 {
-		target.Level = defaultRaidBossLevel
-	}
+	target.Level = level
 
 	// Default Crit chance for NPCs depends only on their level relative to the level of their
 	// player target. If there is a need to model a custom Crit % for a Target, this can be
