@@ -355,6 +355,8 @@ func (rsrc *raidSimResultCombiner) combineUnitMetrics(base *proto.UnitMetrics, a
 	if isLast && base.ChanceOfDeath > 0 {
 		base.AvgDeathTimeSeconds /= base.ChanceOfDeath
 	}
+	base.AvgEndManaPercent += add.AvgEndManaPercent * weight
+	base.AvgEndHealthPercent += add.AvgEndHealthPercent * weight
 
 	if add.DeathSeeds != nil {
 		base.DeathSeeds = append(base.DeathSeeds, add.DeathSeeds...)
@@ -393,6 +395,13 @@ func (rsrc *raidSimResultCombiner) AddResult(result *proto.RaidSimResult, isLast
 
 	for i, tar := range result.EncounterMetrics.Targets {
 		rsrc.combineUnitMetrics(rsrc.Combined.EncounterMetrics.Targets[i], tar, isLast, weight)
+	}
+	// A split's kill time averages its own kills, so it weighs by them, as the death time does.
+	combined := rsrc.Combined.EncounterMetrics
+	combined.KillRate += result.EncounterMetrics.KillRate * weight
+	combined.AvgKillTimeSeconds += result.EncounterMetrics.AvgKillTimeSeconds * result.EncounterMetrics.KillRate * weight
+	if isLast && combined.KillRate > 0 {
+		combined.AvgKillTimeSeconds /= combined.KillRate
 	}
 
 	rsrc.Combined.AvgIterationDuration += result.AvgIterationDuration * weight

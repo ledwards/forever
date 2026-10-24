@@ -100,6 +100,9 @@ type UnitMetrics struct {
 	// Aggregate values. These are updated after each iteration.
 	numItersDead int32
 	deathTimeSum float64 // Seconds, summed over the iterations the unit died in.
+	// Mana and health at each iteration's end as fractions of the maximum, summed over iterations.
+	endManaSum   float64
+	endHealthSum float64
 	deathSeeds   []int64
 	oomTimeSum   float64
 	actions      map[ActionID]*ActionMetrics
@@ -584,6 +587,12 @@ func (unitMetrics *UnitMetrics) doneIteration(unit *Unit, sim *Simulation) {
 	unitMetrics.tto.doneIteration(sim)
 
 	unitMetrics.oomTimeSum += unitMetrics.OOMTime.Seconds()
+	if unit.HasManaBar() {
+		unitMetrics.endManaSum += unit.CurrentManaPercent()
+	}
+	if unit.HasHealthBar() {
+		unitMetrics.endHealthSum += unit.CurrentHealthPercent()
+	}
 	if unitMetrics.Died {
 		unitMetrics.numItersDead++
 		unitMetrics.deathTimeSum += unitMetrics.DiedAt.Seconds()
@@ -680,6 +689,8 @@ func (unitMetrics *UnitMetrics) ToProto() *proto.UnitMetrics {
 		SecondsOomAvg:       unitMetrics.oomTimeSum / n,
 		ChanceOfDeath:       float64(unitMetrics.numItersDead) / n,
 		AvgDeathTimeSeconds: TernaryFloat64(unitMetrics.numItersDead > 0, unitMetrics.deathTimeSum/float64(unitMetrics.numItersDead), 0),
+		AvgEndManaPercent:   unitMetrics.endManaSum / n,
+		AvgEndHealthPercent: unitMetrics.endHealthSum / n,
 	}
 
 	if len(unitMetrics.deathSeeds) > 0 {

@@ -32,6 +32,12 @@ type Encounter struct {
 
 	// Value to multiply by, for damage spells which are subject to the aoe cap.
 	aoeCapMultiplier float64
+
+	// Iterations run, and among them the health fights that ended with the targets' health spent,
+	// with the sum of those kills' times.
+	iterations  int32
+	kills       int32
+	killTimeSum float64
 }
 
 func areaTypeSet(areaTypes []proto.AreaType) []proto.AreaType {
@@ -151,11 +157,18 @@ func (encounter *Encounter) doneIteration(sim *Simulation) {
 	for _, target := range encounter.AllTargets {
 		target.doneIteration(sim)
 	}
+	encounter.iterations++
+	if encounter.EndFightAtHealth > 0 && encounter.DamageTaken >= encounter.EndFightAtHealth {
+		encounter.kills++
+		encounter.killTimeSum += sim.CurrentTime.Seconds()
+	}
 }
 
 func (encounter *Encounter) GetMetricsProto() *proto.EncounterMetrics {
 	metrics := &proto.EncounterMetrics{
-		Targets: make([]*proto.UnitMetrics, len(encounter.AllTargets)),
+		Targets:            make([]*proto.UnitMetrics, len(encounter.AllTargets)),
+		KillRate:           TernaryFloat64(encounter.iterations > 0, float64(encounter.kills)/float64(encounter.iterations), 0),
+		AvgKillTimeSeconds: TernaryFloat64(encounter.kills > 0, encounter.killTimeSum/float64(encounter.kills), 0),
 	}
 
 	for idx, target := range encounter.AllTargets {

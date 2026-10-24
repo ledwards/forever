@@ -398,6 +398,10 @@ message UnitMetrics {
 	// The time of death, in seconds, averaged over the iterations the unit died in; zero where it
 	// never died.
 	double avg_death_time_seconds = 17;
+	// The unit's mana and health at the end of the iteration as a fraction of its maximum, averaged
+	// over every iteration; zero where the unit has no such bar.
+	double avg_end_mana_percent = 18;
+	double avg_end_health_percent = 19;
        repeated int64 death_seeds = 2;
 
 	repeated ActionMetrics actions = 5;
@@ -425,6 +429,10 @@ message RaidMetrics {
 
 message EncounterMetrics {
 	repeated UnitMetrics targets = 1;
+	// The fraction of iterations a health fight ended with the targets' health spent, and the mean
+	// time of those kills in seconds (zero where none came). A duration fight reports zero for both.
+	double kill_rate = 2;
+	double avg_kill_time_seconds = 3;
 }
 
 enum SimType {
