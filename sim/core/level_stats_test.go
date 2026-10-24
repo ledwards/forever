@@ -105,6 +105,11 @@ func TestTargetDefaultsFromCreatureRow(t *testing.T) {
 	if options.SwingSpeed != 2 || math.Abs(options.MinBaseDamage-26.08427619934*2) > 0.001 {
 		t.Errorf("auto attack = %v damage over %v, want 52.169 over 2", options.MinBaseDamage, options.SwingSpeed)
 	}
+	// A health fight against such a target ends at the row's health.
+	encounter := NewEncounter(&proto.Encounter{UseHealth: true, Targets: []*proto.Target{{Level: 32, MobType: proto.MobType_MobTypeBeast, StatsFromLevel: true}}})
+	if encounter.EndFightAtHealth != 1374 {
+		t.Errorf("health fight ends at %v damage, want the row's 1374", encounter.EndFightAtHealth)
+	}
 	// Explicit stats win, and a target that does not ask keeps whatever it stated, type or no type.
 	explicit := NewTarget(&proto.Target{Level: 32, MobType: proto.MobType_MobTypeBeast, StatsFromLevel: true, Stats: stats.Stats{stats.Health: 500}.ToProtoArray()}, 0)
 	if explicit.GetStats()[stats.Health] != 500 || explicit.GetStats()[stats.Armor] != 0 {

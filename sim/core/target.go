@@ -89,10 +89,11 @@ func NewEncounter(options *proto.Encounter) Encounter {
 		panic("At least one target must be active at the start of the simulation!")
 	}
 
-	// If UseHealth is set, we use the sum of targets health. After creating the targets to make sure stat modifications are done
+	// If UseHealth is set, we use the sum of targets health as built, so a target whose stats come
+	// from its level counts. After creating the targets to make sure stat modifications are done
 	if options.UseHealth {
-		for _, t := range options.Targets {
-			encounter.EndFightAtHealth += t.Stats[stats.Health]
+		for _, t := range encounter.AllTargets {
+			encounter.EndFightAtHealth += t.GetStats()[stats.Health]
 		}
 		if encounter.EndFightAtHealth == 0 {
 			encounter.EndFightAtHealth = 1 // default to something so we don't instantly end without anything.
